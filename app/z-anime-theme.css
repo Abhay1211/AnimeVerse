@@ -1,0 +1,220 @@
+/* =========================================================
+   Z-ANIME STYLE THEME ADD-ON
+   Import this AFTER globals.css:
+   @import "./z-anime-theme.css";
+   ========================================================= */
+   :root {
+    --glow-white: rgba(255, 255, 255, 0.85);
+    --glow-cyan: #4fd8ff;
+    --glow-cyan-soft: rgba(79, 216, 255, 0.55);
+    --glow-gold: #ffb347;
+    --glow-gold-soft: rgba(255, 179, 71, 0.5);
+
+    --glass-dark-bg: rgba(10, 10, 12, 0.55);
+    --glass-dark-bg-hover: rgba(10, 10, 12, 0.72);
+    --glass-dark-border: rgba(255, 255, 255, 0.10);
+    --glass-dark-border-hover: rgba(255, 255, 255, 0.22);
+    --glass-dark-blur: 22px;
+}
+
+/* =========================
+   MONOSPACE DISPLAY FONT
+   Use on logo / big headings, the way Z-Anime does
+========================= */
+
+.font-mono-display {
+    font-family: "JetBrains Mono", monospace;
+    letter-spacing: -0.02em;
+}
+
+/* =========================
+   GLOW TEXT UTILITIES
+   Add these classnames directly onto headings/logo text
+========================= */
+
+.text-glow {
+    color: #fff;
+    text-shadow:
+        0 0 8px rgba(255, 255, 255, 0.55),
+        0 0 24px rgba(255, 255, 255, 0.28),
+        0 0 48px rgba(255, 255, 255, 0.12);
+}
+
+.text-glow-cyan {
+    color: var(--glow-cyan);
+    text-shadow:
+        0 0 8px var(--glow-cyan-soft),
+        0 0 22px rgba(79, 216, 255, 0.35),
+        0 0 44px rgba(79, 216, 255, 0.15);
+}
+
+.text-glow-gold {
+    color: var(--glow-gold);
+    text-shadow:
+        0 0 8px var(--glow-gold-soft),
+        0 0 22px rgba(255, 179, 71, 0.32),
+        0 0 44px rgba(255, 179, 71, 0.14);
+}
+
+/* Split-color logo like "Z-ANIME" (dark -> cyan gradient across letters) */
+.logo-gradient-glow {
+    background: linear-gradient(90deg, #0a0a0a 0%, #1c2a3a 22%, #4fd8ff 55%, #9fefff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 18px rgba(79, 216, 255, 0.45));
+}
+
+/* Slow pulsing glow, use sparingly (e.g. hero title only) */
+@keyframes glow-pulse {
+
+    0%,
+    100% {
+        filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.25));
+    }
+
+    50% {
+        filter: drop-shadow(0 0 22px rgba(255, 255, 255, 0.5));
+    }
+}
+
+.text-glow-pulse {
+    animation: glow-pulse 3.2s ease-in-out infinite;
+}
+
+/* =========================
+   HEAVY GLASS CARDS (Z-ANIME STYLE)
+   Swap onto .overview-card / .experience-card / .features-tabs
+   or add as an EXTRA class: className="overview-card glass-card-glow"
+========================= */
+
+.glass-card-glow {
+    position: relative;
+    background: var(--glass-dark-bg) !important;
+    border: 1px solid var(--glass-dark-border) !important;
+    border-radius: 14px !important;
+    backdrop-filter: blur(var(--glass-dark-blur)) saturate(120%);
+    -webkit-backdrop-filter: blur(var(--glass-dark-blur)) saturate(120%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 12px 40px rgba(0, 0, 0, 0.45);
+    transition:
+        background 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease,
+        transform 0.3s ease;
+}
+
+.glass-card-glow:hover {
+    background: var(--glass-dark-bg-hover) !important;
+    border-color: var(--glass-dark-border-hover) !important;
+    transform: translateY(-4px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 0 1px rgba(79, 216, 255, 0.12),
+        0 20px 60px rgba(0, 0, 0, 0.55),
+        0 0 30px rgba(79, 216, 255, 0.10);
+}
+
+/* Small badge pill like "Popular" / "International" / "Essential" in Z-Anime cards */
+.glow-badge {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    color: var(--glow-cyan);
+    background: rgba(79, 216, 255, 0.08);
+    border: 1px solid rgba(79, 216, 255, 0.35);
+    text-shadow: 0 0 8px rgba(79, 216, 255, 0.6);
+}
+
+/* =========================
+   GLOWING PILL BUTTONS (Get Started / Watch Now style)
+========================= */
+
+.btn-glow-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 22px;
+    height: 48px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    background: #fff;
+    color: #000;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-glow-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 30px rgba(255, 255, 255, 0.4);
+}
+
+.btn-glow-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 22px;
+    height: 48px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-dark-border-hover);
+    background: rgba(0, 0, 0, 0.35);
+    color: #fff;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-glow-outline:hover {
+    transform: translateY(-2px);
+    border-color: var(--glow-cyan-soft);
+    box-shadow: 0 0 22px rgba(79, 216, 255, 0.18);
+}
+
+/* =========================
+   SECTION EYEBROW (small uppercase glowing label)
+   Use on: WELCOME TO ANIMEVERSE / YOUR EXPERIENCE / etc.
+========================= */
+
+.eyebrow-glow {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--glow-gold);
+    text-shadow: 0 0 10px rgba(255, 179, 71, 0.45);
+}
+
+/* =========================
+   MOBILE ADJUSTMENTS
+========================= */
+
+@media (max-width: 700px) {
+    .glass-card-glow {
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+    }
+
+    .text-glow,
+    .text-glow-cyan,
+    .text-glow-gold {
+        text-shadow:
+            0 0 6px rgba(255, 255, 255, 0.4),
+            0 0 16px rgba(255, 255, 255, 0.2);
+    }
+}
