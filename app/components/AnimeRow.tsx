@@ -1,3 +1,77 @@
-import { Play } from "lucide-react";
+"use client";
+
+import { useRef } from "react";
 import type { Anime } from "../data/anime";
-export default function AnimeRow({ title, label, anime, progress = false }: { title: string; label: string; anime: Anime[]; progress?: boolean }) { return <section className="catalog-row" id={title === "Trending Now" ? "trending" : title === "Top Rated" ? "top-rated" : undefined}><div className="row-heading"><div><p>{label}</p><h2>{title}</h2></div><button>View all</button></div><div className="row-scroller">{anime.map(item => <article className="row-card" key={`${title}-${item.id}`}><div className="row-poster" style={{ backgroundImage: `url(${item.poster})`, backgroundPosition: item.posterPosition }}><button aria-label={`Watch ${item.title}`}><Play size={16} fill="currentColor" /></button></div><h3>{item.title}</h3>{progress ? <><div className="watch-progress"><span /></div><p>Continue watching</p></> : <p>{item.genres.slice(0, 2).join(" · ")}</p>}</article>)}</div></section>; }
+import AnimeCard from "./AnimeCard";
+
+type AnimeRowProps = {
+    title: string;
+    label: string;
+    anime: Anime[];
+};
+
+export default function AnimeRow({
+    title,
+    label,
+    anime,
+}: AnimeRowProps) {
+    const scrollerRef = useRef<HTMLDivElement>(null);
+
+    const scroll = (direction: "left" | "right") => {
+        scrollerRef.current?.scrollBy({
+            left: direction === "left" ? -400 : 400,
+            behavior: "smooth",
+        });
+    };
+
+    return (
+        <section
+            className="catalog-row"
+            id={
+                title === "Trending Now"
+                    ? "trending"
+                    : title === "Top Rated"
+                        ? "top-rated"
+                        : undefined
+            }
+        >
+            <div className="row-heading">
+                <h2 className="row-title">
+                    <span>///</span>
+                    {title}
+                </h2>
+
+                <div className="row-controls">
+                    <button
+                        type="button"
+                        onClick={() => scroll("left")}
+                    >
+                        ‹
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => scroll("right")}
+                    >
+                        ›
+                    </button>
+                </div>
+            </div>
+
+            <div className="row-scroller" ref={scrollerRef}>
+                {anime.map((item) => (
+                    <AnimeCard
+                        key={`${title}-${item.id}`}
+                        id={item.id}
+                        title={item.title}
+                        nativeTitle={item.nativeTitle}
+                        image={item.poster}
+                        score={item.score ?? undefined}
+                        episodes={item.episodes ?? undefined}
+                        format={item.type}
+                    />
+                ))}
+            </div>
+        </section>
+    );
+}

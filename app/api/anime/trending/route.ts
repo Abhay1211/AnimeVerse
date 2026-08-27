@@ -1,102 +1,125 @@
 import { NextResponse } from "next/server";
+import {
+    mapAniListAnime,
+    type AniListAnime,
+} from "../../../data/anime";
 
 const ANILIST_API = "https://graphql.anilist.co";
+const VALID_SORTS = [
+    "TRENDING_DESC",
+    "POPULARITY_DESC",
+    "FAVOURITES_DESC",
+    "SCORE_DESC",
+    "START_DATE_DESC",
+] as const;
 
-const query = `
+type AnimeSort = (typeof VALID_SORTS)[number];
+
+const query = (
+    sort: AnimeSort,
+    status?: "RELEASING" | "NOT_YET_RELEASED",
+    excludeUpcoming = false
+) => `
     query {
-        Page(page: 1, perPage: 7) {
+        Page(page: 1, perPage: 20) {
             media(
                 type: ANIME
-                sort: TRENDING_DESC
-                isAdult: false
+                sort: ${sort}
+                ${status ? `status: ${status}` : ""}
+                ${excludeUpcoming ? "status_not: NOT_YET_RELEASED" : ""}
             ) {
                 id
 
                 title {
-                    english
                     romaji
+                    english
+                    native
                 }
 
                 description
 
+                startDate {
+                    year
+                }
+
+                episodes
+                format
+                averageScore
+                genres
+
                 coverImage {
                     large
-                    extraLarge
                 }
 
                 bannerImage
-
-                genres
             }
         }
     }
 `;
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+
+        const sortParam =
+            searchParams.get("sort") || "TRENDING_DESC";
+
+        const sort: AnimeSort = VALID_SORTS.includes(
+            sortParam as AnimeSort
+        )
+            ? (sortParam as AnimeSort)
+            : "TRENDING_DESC";
+
+        const statusParam = searchParams.get("status");
+
+        const status =
+            statusParam === "RELEASING" ||
+                statusParam === "NOT_YET_RELEASED"
+                ? statusParam
+                : undefined;
+
+        const excludeUpcoming =
+            searchParams.get("excludeUpcoming") === "true";
+
         const response = await fetch(ANILIST_API, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Accept: "application/json",
             },
-            body: JSON.stringify({ query }),
-
-            // Refresh trending data every 5 minutes.
+            body: JSON.stringify({
+                query: query(
+                    sort,
+                    status,
+                    excludeUpcoming
+                ),
+            }),
             next: {
-                revalidate: 300,
+                revalidate: 3600,
             },
         });
 
         if (!response.ok) {
-            throw new Error(`AniList returned ${response.status}`);
+            throw new Error("AniList request failed");
         }
 
-        const json = await response.json();
+        const result = await response.json();
 
-        if (json.errors) {
-            throw new Error("AniList returned GraphQL errors");
+        if (result.errors) {
+            console.error("AniList GraphQL errors:", result.errors);
+            throw new Error("AniList GraphQL request failed");
         }
 
-        const media = json?.data?.Page?.media;
-
-        if (!Array.isArray(media)) {
-            throw new Error("Invalid AniList response");
-        }
-
-        const anime = media.map((item: any) => ({
-            id: item.id,
-            title:
-                item.title?.english ||
-                item.title?.romaji ||
-                "Unknown Anime",
-
-            description:
-                item.description
-                    ?.replace(/<[^>]*>/g, "")
-                    .replace(/\s+/g, " ")
-                    .trim() || "",
-
-            poster:
-                item.coverImage?.extraLarge ||
-                item.coverImage?.large ||
-                "",
-
-            banner:
-                item.bannerImage ||
-                item.coverImage?.extraLarge ||
-                item.coverImage?.large ||
-                "",
-
-            genres: item.genres || [],
-        }));
-
-        return NextResponse.json(anime);
-    } catch (error) {
-        console.error("Trending anime error:", error);
+        const anime: AniListAnime[] =
+            result.data.Page.media;
 
         return NextResponse.json(
-            { error: "Failed to load trending anime." },
+            anime.map(mapAniListAnime)
+        );
+    } catch (error) {
+        console.error("AniList API error:", error);
+
+        return NextResponse.json(
+            { error: "Failed to fetch anime" },
             { status: 500 }
         );
     }

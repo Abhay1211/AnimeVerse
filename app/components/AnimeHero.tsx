@@ -3,101 +3,187 @@
 import {
     ArrowLeft,
     ArrowRight,
+    LayoutGrid,
     Play,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type PointerEvent,
+} from "react";
 
 type Anime = {
-    id: number;
+    id: string;
     title: string;
     description: string;
     genres: string[];
     poster: string;
-    banner: string;
+    banner: string | null;
+    logo: string | null;
 };
 
-export default function AnimeHero() {
-    const [anime, setAnime] = useState<Anime[]>([]);
+type AnimeHeroProps = {
+    anime: Anime[];
+};
+
+export default function AnimeHero({ anime }: AnimeHeroProps) {
     const [activeIndex, setActiveIndex] = useState(0);
-    const [loading, setLoading] = useState(true);
 
-    const wheelLocked = useRef(false);
+    // Drag state
+    const dragStartX = useRef(0);
+    const dragCurrentX = useRef(0);
+    const isDragging = useRef(false);
+    const draggedIndex = useRef<number | null>(null);
 
-    useEffect(() => {
-        const loadTrendingAnime = async () => {
-            try {
-                const response = await fetch("/api/anime/trending");
-
-                if (!response.ok) {
-                    throw new Error("Failed to fetch anime");
-                }
-
-                const data = await response.json();
-
-                setAnime(data);
-            } catch (error) {
-                console.error("Failed to load trending anime:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadTrendingAnime();
-    }, []);
-
-    // Automatically switch anime every 8 seconds.
+    const [dragX, setDragX] = useState(0);
+    const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+    /*
+     * Automatically change anime every 8 seconds.
+     * Pause while dragging.
+     */
     useEffect(() => {
         if (anime.length < 2) return;
 
         const interval = window.setInterval(() => {
+            if (isDragging.current) return;
+
             setActiveIndex((current) =>
-                current === anime.length - 1 ? 0 : current + 1
+                current === anime.length - 1
+                    ? 0
+                    : current + 1
             );
         }, 8000);
 
         return () => window.clearInterval(interval);
     }, [anime.length]);
 
+    /*
+     * Carousel navigation.
+     */
     const nextAnime = () => {
         setActiveIndex((current) =>
-            current === anime.length - 1 ? 0 : current + 1
+            current === anime.length - 1
+                ? 0
+                : current + 1
         );
     };
 
     const previousAnime = () => {
         setActiveIndex((current) =>
-            current === 0 ? anime.length - 1 : current - 1
+            current === 0
+                ? anime.length - 1
+                : current - 1
+        );
+    };
+    /*
+     * Start grabbing a card.
+     */
+    const handlePointerDown = (
+        event: PointerEvent<HTMLButtonElement>,
+        index: number
+    ) => {
+        if (anime.length < 2) return;
+
+        isDragging.current = true;
+
+        dragStartX.current = event.clientX;
+        dragCurrentX.current = event.clientX;
+
+        draggedIndex.current = index;
+        setDraggingIndex(index);
+        setDragX(0);
+
+        event.currentTarget.setPointerCapture(
+            event.pointerId
         );
     };
 
-    // Mouse wheel / trackpad navigation.
-    const handleWheel = (event: React.WheelEvent) => {
-        if (wheelLocked.current || anime.length < 2) return;
+    /*
+     * Card follows the pointer while being grabbed.
+     */
+    const handlePointerMove = (
+        event: PointerEvent<HTMLButtonElement>
+    ) => {
+        if (!isDragging.current) return;
 
-        wheelLocked.current = true;
+        dragCurrentX.current = event.clientX;
 
-        if (event.deltaY > 0 || event.deltaX > 0) {
-            nextAnime();
-        } else {
-            previousAnime();
+        const distance =
+            event.clientX - dragStartX.current;
+
+        setDragX(distance);
+    };
+
+    /*
+     * Release the card.
+     */
+    const handlePointerUp = () => {
+        if (!isDragging.current) return;
+
+        const distance =
+            dragCurrentX.current - dragStartX.current;
+
+        const index = draggedIndex.current;
+
+        isDragging.current = false;
+        draggedIndex.current = null;
+
+        // Small movement = just release the card.
+        if (
+            Math.abs(distance) < 50 ||
+            index === null
+        ) {
+            setDraggingIndex(null);
+            setDragX(0);
+            return;
         }
 
-        window.setTimeout(() => {
-            wheelLocked.current = false;
-        }, 500);
-    };
+        const total = anime.length;
 
-    if (loading) {
-        return (
-            <section className="anime-hero anime-hero-loading" />
-        );
-    }
+        let offset = index - activeIndex;
+
+        // Keep the carousel circular.
+        if (offset > total / 2) {
+            offset -= total;
+        }
+
+        if (offset < -total / 2) {
+            offset += total;
+        }
+
+        /*
+         * First change the active card while the dragged
+         * position is still visible.
+         */
+        setActiveIndex(() => {
+            let next = activeIndex + offset;
+
+            if (next < 0) {
+                next += total;
+            }
+
+            if (next >= total) {
+                next -= total;
+            }
+
+            return next;
+        });
+
+        /*
+         * Let CSS animate the dragged card back into
+         * its new carousel position.
+         */
+        setDraggingIndex(null);
+        setDragX(0);
+    };
 
     if (!anime.length) {
         return (
             <section className="anime-hero">
                 <div className="anime-hero-error">
-                    Unable to load trending anime.
+                    Loading...
                 </div>
             </section>
         );
@@ -112,23 +198,23 @@ export default function AnimeHero() {
                 key={activeAnime.id}
                 className="anime-hero-background"
                 style={{
-                    backgroundImage: `url("${activeAnime.banner}")`,
+                    backgroundImage: `url("${activeAnime.banner || activeAnime.poster}")`,
                 }}
             />
 
             <div className="anime-hero-overlay" />
 
-            {/* Card carousel */}
-            <div
-                className="anime-carousel"
-                onWheel={handleWheel}
-            >
+            {/* Anime carousel */}
+            <div className="anime-carousel">
                 {anime.map((item, index) => {
                     const total = anime.length;
 
-                    let offset = index - activeIndex;
+                    let offset =
+                        index - activeIndex;
 
-                    // Make the carousel circular.
+                    /*
+                     * Make carousel circular.
+                     */
                     if (offset > total / 2) {
                         offset -= total;
                     }
@@ -139,90 +225,123 @@ export default function AnimeHero() {
 
                     const distance = Math.abs(offset);
 
+                    if (distance > 2) return null;
+
+                    const isDraggingCard =
+                        draggingIndex === index;
+
                     return (
-                        <button
+                        <div
                             key={item.id}
-                            type="button"
-                            className={`anime-carousel-card ${index === activeIndex ? "active" : ""
+                            className={`anime-carousel-item ${index === activeIndex
+                                ? "active"
+                                : ""
+                                } ${isDraggingCard
+                                    ? "is-dragging"
+                                    : ""
                                 }`}
                             style={
                                 {
                                     "--offset": offset,
                                     "--distance": distance,
-                                } as React.CSSProperties
+                                    "--drag-x":
+                                        draggingIndex === index
+                                            ? `${dragX}px`
+                                            : "0px",
+                                } as CSSProperties
                             }
-                            onClick={() => setActiveIndex(index)}
-                            aria-label={`Select ${item.title}`}
                         >
-                            <img
-                                src={item.poster}
-                                alt={item.title}
-                                draggable={false}
-                            />
+                            <button
+                                type="button"
+                                className={`anime-carousel-card ${isDraggingCard
+                                    ? "is-dragging"
+                                    : ""
+                                    }`}
+                                onPointerDown={(event) =>
+                                    handlePointerDown(
+                                        event,
+                                        index
+                                    )
+                                }
+                                onPointerMove={
+                                    handlePointerMove
+                                }
+                                onPointerUp={
+                                    handlePointerUp
+                                }
+                                onPointerCancel={
+                                    handlePointerUp
+                                }
+                                aria-label={`Drag ${item.title}`}
+                            >
+                                <img
+                                    src={item.poster}
+                                    alt={item.title}
+                                    draggable={false}
+                                />
 
-                            <div className="anime-carousel-card-shade" />
-
-                            {index === activeIndex && (
-                                <div className="anime-carousel-card-title">
-                                    {item.title}
-                                </div>
-                            )}
-                        </button>
+                                <div className="anime-carousel-card-shade" />
+                            </button>
+                        </div>
                     );
                 })}
             </div>
 
-            {/* Hidden for now */}
-            <div className="anime-hero-title">
-                <h1>{activeAnime.title}</h1>
-
-                <div className="anime-hero-genres">
-                    {activeAnime.genres.slice(0, 3).map((genre) => (
-                        <span key={genre}>{genre}</span>
-                    ))}
-                </div>
-            </div>
-
-            <button
-                type="button"
-                className="anime-hero-watch"
-            >
-                <Play size={15} fill="currentColor" />
-                <span>WATCH NOW</span>
-            </button>
-
-            {/* Carousel controls */}
+            {/* Carousel arrows */}
             <div className="anime-hero-controls">
                 <button
                     type="button"
+                    className="anime-hero-arrow anime-hero-arrow-left"
                     onClick={previousAnime}
                     aria-label="Previous anime"
                 >
-                    <ArrowLeft size={18} />
+                    <ArrowLeft size={22} />
                 </button>
-
-                <div className="anime-hero-dots">
-                    {anime.map((item, index) => (
-                        <button
-                            key={item.id}
-                            type="button"
-                            className={
-                                index === activeIndex
-                                    ? "active"
-                                    : ""
-                            }
-                            onClick={() => setActiveIndex(index)}
-                            aria-label={`Show ${item.title}`}
-                        />
-                    ))}
-                </div>
 
                 <button
                     type="button"
+                    className="anime-hero-arrow anime-hero-arrow-right"
                     onClick={nextAnime}
                     aria-label="Next anime"
                 >
-                    <ArrowRight size={18} />
+                    <ArrowRight size={22} />
+                </button>
+            </div>
+
+            {/* Anime logo / title */}
+            <div className="anime-hero-title">
+                {activeAnime.logo ? (
+                    <img
+                        src={activeAnime.logo}
+                        alt={activeAnime.title}
+                        className="anime-hero-logo"
+                    />
+                ) : (
+                    <h1>{activeAnime.title}</h1>
+                )}
+            </div>
+
+            {/* Main actions */}
+            <div className="anime-hero-actions">
+                <button
+                    type="button"
+                    className="anime-hero-watch"
+                >
+                    <Play
+                        size={16}
+                        fill="currentColor"
+                    />
+
+                    <span>WATCH NOW</span>
+                </button>
+
+                <button
+                    type="button"
+                    className="anime-hero-browse"
+                >
+                    <LayoutGrid size={16} />
+
+                    <span>BROWSE</span>
                 </button>
             </div>
         </section>

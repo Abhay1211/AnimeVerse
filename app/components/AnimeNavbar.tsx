@@ -10,19 +10,18 @@ import {
     UserRound,
 } from "lucide-react";
 import Link from "next/link";
-
+import { usePathname } from "next/navigation";
 
 const navItems = [
     {
         label: "Home",
         icon: Home,
         href: "/anime",
-        active: true,
     },
     {
         label: "Browse",
         icon: Grid2X2,
-        href: "/anime",
+        href: "/anime/browse",
     },
     {
         label: "Alerts",
@@ -45,11 +44,16 @@ const navItems = [
 ];
 
 export default function AnimeNavbar() {
+    const pathname = usePathname();
+
     const goBack = () => window.history.back();
     const goForward = () => window.history.forward();
 
     return (
-        <nav className="anime-navbar" aria-label="AnimeVerse navigation">
+        <nav
+            className="anime-navbar"
+            aria-label="AnimeVerse navigation"
+        >
             <div className="anime-navbar-group anime-navbar-history">
                 <button
                     type="button"
@@ -93,12 +97,23 @@ export default function AnimeNavbar() {
                         );
                     }
 
+                    const isActive =
+                        pathname === item.href ||
+                        (
+                            item.href === "/anime" &&
+                            pathname.startsWith("/anime/") &&
+                            pathname !== "/anime/browse"
+                        );
+
                     return (
                         <Link
                             key={item.label}
                             href={item.href}
-                            className={`anime-nav-item ${item.active ? "anime-nav-active" : ""
-                                }`}
+                            className={`anime-nav-item ${
+                                isActive
+                                    ? "anime-nav-active"
+                                    : ""
+                            }`}
                             aria-label={item.label}
                         >
                             <Icon size={17} />
