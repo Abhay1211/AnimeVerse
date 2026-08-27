@@ -61,6 +61,11 @@ const query = `
                 timeUntilAiring
             }
 
+            streamingEpisodes {
+                title
+                thumbnail
+            }
+
             relations {
                 edges {
                     relationType

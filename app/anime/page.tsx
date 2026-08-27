@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import AnimeHero from "../components/AnimeHero";
+import AnimeSearch from "../components/AnimeSearch";
 import AnimeCategories from "../components/AnimeCategories";
 import AnimeRow from "../components/AnimeRow";
 import TopTen from "../components/TopTen";
+import AnimeNavbar from "../components/AnimeNavbar";
 import type { Anime } from "../data/anime";
 
 export default function AnimePage() {
@@ -49,9 +51,14 @@ export default function AnimePage() {
     }, []);
 
     return (
-        <main className="anime-page">
+        <>
+            <AnimeNavbar />
+
+            <main className="anime-page">
 
             <AnimeHero anime={topAiring.slice(0, 5)} />
+
+            <AnimeSearch />
 
             <AnimeCategories />
 
@@ -99,6 +106,7 @@ export default function AnimePage() {
                 week={mostPopular}
                 month={mostFavorite}
             />
-        </main>
+            </main>
+        </>
     );
 }

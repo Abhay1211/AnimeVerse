@@ -372,10 +372,14 @@ async function getTheTvdbLogo(
     }
 }
 
-async function fetchTmdbArtwork(
+/**
+ * Resolve the best-matching TMDB TV show for an anime title/year.
+ * Shared by artwork and per-episode image lookups.
+ */
+async function findTmdbShow(
     title: string,
     year: number | null
-) {
+): Promise<TmdbSearchResult | null> {
     const params = new URLSearchParams({
         query: title,
         include_adult: "false",
@@ -384,19 +388,14 @@ async function fetchTmdbArtwork(
     });
 
     if (year) {
-        params.set(
-            "first_air_date_year",
-            String(year)
-        );
+        params.set("first_air_date_year", String(year));
     }
 
     const searchResponse = await fetch(
         `${TMDB_API}/search/tv?${params}`,
         {
             headers: getTmdbHeaders(),
-            next: {
-                revalidate: 86400,
-            },
+            next: { revalidate: 86400 },
         }
     );
 
@@ -409,31 +408,31 @@ async function fetchTmdbArtwork(
 
     const normalizedTitle = normalizeTitle(title);
 
-    const exactTitleMatch = searchData.results.find(
-        (result) => {
-            const names = [
-                result.name,
-                result.original_name,
-            ].filter(Boolean) as string[];
+    const exactTitleMatch = searchData.results.find((result) => {
+        const names = [
+            result.name,
+            result.original_name,
+        ].filter(Boolean) as string[];
 
-            return names.some(
-                (name) =>
-                    normalizeTitle(name) ===
-                    normalizedTitle
-            );
-        }
-    );
+        return names.some(
+            (name) => normalizeTitle(name) === normalizedTitle
+        );
+    });
 
     const yearMatch = year
-        ? searchData.results.find(
-            (result) =>
-                result.first_air_date?.startsWith(
-                    String(year)
-                )
-        )
+        ? searchData.results.find((result) =>
+              result.first_air_date?.startsWith(String(year))
+          )
         : null;
 
-    const show = exactTitleMatch ?? yearMatch;
+    return exactTitleMatch ?? yearMatch ?? null;
+}
+
+async function fetchTmdbArtwork(
+    title: string,
+    year: number | null
+) {
+    const show = await findTmdbShow(title, year);
 
     /*
      * If TMDB can't find the show at all,
@@ -552,6 +551,204 @@ export function getTmdbArtwork(
     );
 
     artworkCache.set(key, request);
+
+    return request;
+}
+
+/* ============================================================
+   PER-EPISODE IMAGES (TMDB stills)
+   TMDB "stills" are real frames from each episode — the same
+   source Z-Anime-style sites use. Coverage is per-title.
+   ============================================================ */
+
+export type TmdbEpisode = {
+    /** 1-based ABSOLUTE episode number across the whole series. */
+    number: number;
+    title: string | null;
+    thumbnail: string | null;
+};
+
+type TmdbSeasonEpisode = {
+    episode_number?: number;
+    order?: number;
+    name?: string | null;
+    still_path?: string | null;
+};
+
+type TmdbSeasonResponse = {
+    episodes?: TmdbSeasonEpisode[];
+};
+
+type TmdbTvDetails = {
+    seasons?: { season_number: number; episode_count: number }[];
+};
+
+type TmdbEpisodeGroupSummary = {
+    id: string;
+    name: string;
+    type: number;
+};
+
+type TmdbEpisodeGroupResponse = {
+    groups?: { episodes?: TmdbSeasonEpisode[] }[];
+};
+
+const episodeImageCache = new Map<string, Promise<TmdbEpisode[]>>();
+
+function toEpisode(
+    entry: TmdbSeasonEpisode,
+    fallbackNumber?: number
+): TmdbEpisode {
+    const number =
+        entry.episode_number ??
+        (entry.order != null ? entry.order + 1 : fallbackNumber ?? 0);
+
+    return {
+        number,
+        title: entry.name?.trim() || null,
+        thumbnail: imageUrl(entry.still_path, "w342"),
+    };
+}
+
+async function fetchTmdbSeasonEpisodes(
+    showId: number,
+    seasonNumber: number
+): Promise<TmdbEpisode[]> {
+    const response = await fetch(
+        `${TMDB_API}/tv/${showId}/season/${seasonNumber}`,
+        { headers: getTmdbHeaders(), next: { revalidate: 86400 } }
+    );
+
+    if (!response.ok) return [];
+
+    const data: TmdbSeasonResponse = await response.json();
+
+    return (data.episodes ?? []).map((entry) => toEpisode(entry));
+}
+
+async function fetchTmdbEpisodeImages(
+    title: string,
+    year: number | null
+): Promise<TmdbEpisode[]> {
+    const show = await findTmdbShow(title, year);
+
+    if (!show) return [];
+
+    const detailsResponse = await fetch(
+        `${TMDB_API}/tv/${show.id}`,
+        { headers: getTmdbHeaders(), next: { revalidate: 86400 } }
+    );
+
+    if (!detailsResponse.ok) return [];
+
+    const details: TmdbTvDetails = await detailsResponse.json();
+    const realSeasons = (details.seasons ?? []).filter(
+        (season) => season.season_number >= 1
+    );
+
+    // Single TMDB season → its episode numbers are already absolute.
+    if (realSeasons.length <= 1) {
+        return fetchTmdbSeasonEpisodes(
+            show.id,
+            realSeasons[0]?.season_number ?? 1
+        );
+    }
+
+    // Multi-season → prefer a TMDB "Absolute" ordering episode group.
+    const groupsResponse = await fetch(
+        `${TMDB_API}/tv/${show.id}/episode_groups`,
+        { headers: getTmdbHeaders(), next: { revalidate: 604800 } }
+    );
+
+    if (groupsResponse.ok) {
+        const groups: TmdbEpisodeGroupSummary[] =
+            (await groupsResponse.json()).results ?? [];
+
+        const absoluteGroups = groups.filter((group) =>
+            /absolute/i.test(group.name)
+        );
+
+        const absoluteGroup =
+            absoluteGroups.find((group) =>
+                /no special/i.test(group.name)
+            ) ??
+            absoluteGroups[0] ??
+            groups.find((group) => group.type === 2);
+
+        if (absoluteGroup) {
+            const groupResponse = await fetch(
+                `${TMDB_API}/tv/episode_group/${absoluteGroup.id}`,
+                {
+                    headers: getTmdbHeaders(),
+                    next: { revalidate: 86400 },
+                }
+            );
+
+            if (groupResponse.ok) {
+                const groupData: TmdbEpisodeGroupResponse =
+                    await groupResponse.json();
+
+                const flat = (groupData.groups ?? []).flatMap(
+                    (subgroup) => subgroup.episodes ?? []
+                );
+
+                if (flat.length > 0) {
+                    return flat.map((entry, index) =>
+                        toEpisode(entry, index + 1)
+                    );
+                }
+            }
+        }
+    }
+
+    // Fallback: concatenate seasons in order to build absolute numbering.
+    const combined: TmdbEpisode[] = [];
+    let offset = 0;
+
+    for (const season of realSeasons) {
+        const episodes = await fetchTmdbSeasonEpisodes(
+            show.id,
+            season.season_number
+        );
+
+        for (const episode of episodes) {
+            combined.push({
+                ...episode,
+                number: offset + episode.number,
+            });
+        }
+
+        offset += season.episode_count || episodes.length;
+    }
+
+    return combined;
+}
+
+/**
+ * Absolute-ordered per-episode metadata (title + still) for a series.
+ * Empty array when TMDB has no match. Cached per title/year.
+ */
+export function getTmdbEpisodeImages(
+    title: string,
+    year: number | null
+): Promise<TmdbEpisode[]> {
+    const key = `${normalizeTitle(title)}:${year ?? ""}`;
+
+    const cached = episodeImageCache.get(key);
+    if (cached) return cached;
+
+    const request = fetchTmdbEpisodeImages(title, year).catch(
+        (error) => {
+            episodeImageCache.delete(key);
+            console.error(
+                `TMDB episode images failed for "${title}":`,
+                error
+            );
+            return [] as TmdbEpisode[];
+        }
+    );
+
+    episodeImageCache.set(key, request);
 
     return request;
 }

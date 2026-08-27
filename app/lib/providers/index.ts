@@ -1,8 +1,8 @@
 import type { Provider } from "./types";
-import anikotoProvider from "./anikoto";
+import megaplayProvider from "./anikoto";
 
 export const providers: Provider[] = [
-    anikotoProvider,
+    megaplayProvider,
 ];
 
 export function getPrimaryProvider(): Provider {

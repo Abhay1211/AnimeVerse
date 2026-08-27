@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AnimeNavbar from "../../components/AnimeNavbar";
+import ProviderModal from "../../components/ProviderModal";
 
 import type { Anime } from "../../data/anime";
 
@@ -47,54 +48,6 @@ function formatRelationType(relationType: string) {
     );
 }
 
-type ProviderOption = {
-    id: string;
-    name: string;
-    description: string;
-    details: string;
-    icon: string;
-    recommended?: boolean;
-};
-
-const PROVIDERS: ProviderOption[] = [
-    {
-        id: "anikoto",
-        name: "MegaPlay",
-        description: "Fast and stable streaming",
-        details: "MegaPlay · Primary · Sub/Dub",
-        icon: "▣",
-        recommended: true,
-    },
-    {
-        id: "vidcloud",
-        name: "CloudPlay",
-        description: "Reliable cloud streaming",
-        details: "VidCloud / Vidwish · Sub/Dub",
-        icon: "ϟ",
-    },
-    {
-        id: "kiwi",
-        name: "KiwiStream",
-        description: "Smooth alternative streaming",
-        details: "Kiwi Stream · Sub/Dub",
-        icon: "◎",
-    },
-    {
-        id: "vidstream",
-        name: "StreamX",
-        description: "Classic high-availability source",
-        details: "Vidstream variants · Sub/Dub",
-        icon: "≋",
-    },
-    {
-        id: "others",
-        name: "Nexus",
-        description: "Additional available sources",
-        details: "Other providers · Sub/Dub",
-        icon: "◇",
-    },
-];
-
 export default function AnimeDetailPage() {
     const params = useParams();
     const router = useRouter();
@@ -108,7 +61,7 @@ export default function AnimeDetailPage() {
 
     const [showProviderModal, setShowProviderModal] = useState(false);
     const [selectedProvider, setSelectedProvider] =
-        useState<string>("anikoto");
+        useState<string>("megaplay");
 
     useEffect(() => {
         if (!id) return;
@@ -154,22 +107,6 @@ export default function AnimeDetailPage() {
 
         return () => clearInterval(interval);
     }, [anime]);
-
-    useEffect(() => {
-        if (!showProviderModal) return;
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
-                setShowProviderModal(false);
-            }
-        };
-
-        document.addEventListener("keydown", handleKeyDown);
-
-        return () => {
-            document.removeEventListener("keydown", handleKeyDown);
-        };
-    }, [showProviderModal]);
 
     const startWatching = () => {
         if (!anime) return;
@@ -739,270 +676,13 @@ export default function AnimeDetailPage() {
             </main>
 
             {/* PROVIDER MODAL */}
-            {showProviderModal && (
-                <div
-                    className="
-                        fixed inset-0 z-[100]
-                        flex items-center justify-center
-                        bg-black/75
-                        px-3 py-4 sm:px-5
-                        backdrop-blur-md
-                    "
-                    onMouseDown={(event) => {
-                        if (event.target === event.currentTarget) {
-                            setShowProviderModal(false);
-                        }
-                    }}
-                >
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="provider-modal-title"
-                        className="
-                            relative
-                            flex w-full max-w-[680px]
-                            max-h-[calc(100dvh-32px)]
-                            flex-col
-                            overflow-hidden
-                            rounded-2xl
-                            border border-white/10
-                            bg-[#111]
-                            shadow-2xl
-                        "
-                    >
-                        {/* HEADER */}
-                        <div className="shrink-0 border-b border-white/10 px-5 py-4 sm:px-6">
-                            <div className="flex items-center justify-between gap-4">
-                                <div className="min-w-0">
-                                    <h2
-                                        id="provider-modal-title"
-                                        className="font-mono text-lg font-bold tracking-tight text-white sm:text-xl"
-                                    >
-                                        Choose Provider
-                                    </h2>
-
-                                    <p className="mt-1.5 text-[11px] leading-4 text-white/40 sm:text-xs">
-                                        Select your preferred streaming
-                                        provider before watching.
-                                    </p>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setShowProviderModal(false)
-                                    }
-                                    className="
-                                        flex h-8 w-8 shrink-0
-                                        items-center justify-center
-                                        rounded-full
-                                        text-white/40
-                                        transition
-                                        hover:bg-white/10
-                                        hover:text-white
-                                    "
-                                    aria-label="Close provider selection"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="18"
-                                        height="18"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.8"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M18 6 6 18" />
-                                        <path d="m6 6 12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* PROVIDERS */}
-                        <div
-                            className="
-                                min-h-0
-                                flex-1
-                                space-y-2
-                                overflow-y-auto
-                                px-5 py-4
-                                sm:px-6
-                            "
-                        >
-                            {PROVIDERS.map((provider, index) => {
-                                const isSelected =
-                                    selectedProvider === provider.id;
-
-                                return (
-                                    <button
-                                        key={provider.id}
-                                        type="button"
-                                        onClick={() =>
-                                            setSelectedProvider(
-                                                provider.id
-                                            )
-                                        }
-                                        className={`
-                                            group w-full
-                                            rounded-xl
-                                            border
-                                            p-3
-                                            text-left
-                                            transition-all
-                                            duration-200
-                                            sm:p-3.5
-                                            ${isSelected
-                                                ? "border-white bg-white/[0.10]"
-                                                : "border-white/[0.08] bg-white/[0.025] hover:border-white/20 hover:bg-white/[0.06]"
-                                            }
-                                        `}
-                                    >
-                                        <div className="flex items-center gap-3 sm:gap-4">
-
-                                            {/* ICON */}
-                                            <div
-                                                className={`
-                                                    flex h-10 w-10
-                                                    shrink-0
-                                                    items-center
-                                                    justify-center
-                                                    rounded-full
-                                                    border
-                                                    font-mono
-                                                    text-base
-                                                    transition
-                                                    sm:h-11 sm:w-11
-                                                    sm:text-lg
-                                                    ${isSelected
-                                                        ? "border-white/40 bg-white/10 text-white"
-                                                        : "border-white/10 bg-white/[0.04] text-white/50"
-                                                    }
-                                                `}
-                                            >
-                                                {provider.icon}
-                                            </div>
-
-                                            {/* CONTENT */}
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <h3
-                                                        className={`
-                                                            truncate
-                                                            font-mono
-                                                            text-sm
-                                                            font-bold
-                                                            ${isSelected
-                                                                ? "text-white"
-                                                                : "text-white/90"
-                                                            }
-                                                        `}
-                                                    >
-                                                        {provider.name}
-                                                    </h3>
-
-                                                    {provider.recommended && (
-                                                        <span
-                                                            className="
-                                                                hidden
-                                                                shrink-0
-                                                                rounded-md
-                                                                bg-white
-                                                                px-2
-                                                                py-0.5
-                                                                font-mono
-                                                                text-[8px]
-                                                                font-bold
-                                                                uppercase
-                                                                tracking-wider
-                                                                text-black
-                                                                sm:inline-flex
-                                                            "
-                                                        >
-                                                            Recommended
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <p className="mt-0.5 truncate text-[11px] text-white/55 sm:text-xs">
-                                                    {provider.description}
-                                                </p>
-
-                                                <p className="mt-0.5 truncate font-mono text-[9px] text-white/30 sm:text-[10px]">
-                                                    {provider.details}
-                                                </p>
-                                            </div>
-
-                                            {/* RANK */}
-                                            <div
-                                                className={`
-                                                    shrink-0
-                                                    font-mono
-                                                    text-[10px]
-                                                    font-bold
-                                                    sm:text-xs
-                                                    ${isSelected
-                                                        ? "text-white/70"
-                                                        : "text-white/20"
-                                                    }
-                                                `}
-                                            >
-                                                {String(index + 1).padStart(
-                                                    2,
-                                                    "0"
-                                                )}
-                                            </div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* START WATCHING */}
-                        <div
-                            className="
-                                shrink-0
-                                border-t border-white/10
-                                px-5 py-4
-                                sm:px-6
-                            "
-                        >
-                            <button
-                                type="button"
-                                onClick={startWatching}
-                                className="
-                                    flex h-11 w-full
-                                    items-center justify-center
-                                    gap-3
-                                    rounded-xl
-                                    bg-white
-                                    font-mono
-                                    text-sm
-                                    font-bold
-                                    text-black
-                                    transition
-                                    hover:bg-white/90
-                                    active:scale-[0.99]
-                                "
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="15"
-                                    height="15"
-                                    viewBox="0 0 24 24"
-                                    fill="currentColor"
-                                >
-                                    <polygon points="6 3 20 12 6 21 6 3" />
-                                </svg>
-
-                                Start Watching
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ProviderModal
+                open={showProviderModal}
+                selectedProvider={selectedProvider}
+                onSelect={setSelectedProvider}
+                onClose={() => setShowProviderModal(false)}
+                onStart={startWatching}
+            />
         </>
     );
 }
