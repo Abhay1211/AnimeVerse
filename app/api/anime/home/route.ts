@@ -4,6 +4,13 @@ import {
     type AniListAnime,
 } from "../../../data/anime";
 import { getTmdbArtwork } from "../../../lib/tmdb";
+import { providers } from "../../../lib/providers";
+
+type AiringSchedule = {
+    episode: number;
+    airingAt: number;
+    media: AniListAnime | null;
+};
 
 const ANILIST_API = "https://graphql.anilist.co";
 
@@ -141,6 +148,68 @@ const query = `
                 bannerImage
             }
         }
+
+        latestCompleted: Page(page: 1, perPage: 20) {
+            media(
+                type: ANIME
+                sort: END_DATE_DESC
+                status: FINISHED
+            ) {
+                id
+                title {
+                    romaji
+                    english
+                    native
+                }
+                description
+                startDate {
+                    year
+                }
+                episodes
+                format
+                averageScore
+                genres
+                coverImage {
+                    large
+                }
+                bannerImage
+            }
+        }
+
+        latestEpisodes: Page(page: 1, perPage: 40) {
+            airingSchedules(
+                notYetAired: false
+                sort: TIME_DESC
+            ) {
+                episode
+                airingAt
+
+                media {
+                    id
+                    title {
+                        romaji
+                        english
+                        native
+                    }
+                    description
+                    startDate {
+                        year
+                    }
+                    episodes
+                    format
+                    averageScore
+                    genres
+                    coverImage {
+                        large
+                    }
+                    bannerImage
+                    streamingEpisodes {
+                        title
+                        thumbnail
+                    }
+                }
+            }
+        }
     }
 `;
 
@@ -237,11 +306,59 @@ export async function GET() {
         const topUpcoming: AniListAnime[] =
             data.topUpcoming.media;
 
+        const latestCompleted: AniListAnime[] =
+            data.latestCompleted?.media ?? [];
+
+        const airingSchedules: AiringSchedule[] =
+            data.latestEpisodes?.airingSchedules ?? [];
+
         const mappedTopAiring = topAiring.map(mapAniListAnime);
         const mappedMostPopular = mostPopular.map(mapAniListAnime);
         const mappedMostFavorite = mostFavorite.map(mapAniListAnime);
         const mappedRecentlyAdded = recentlyAdded.map(mapAniListAnime);
         const mappedTopUpcoming = topUpcoming.map(mapAniListAnime);
+        const mappedLatestCompleted =
+            latestCompleted.map(mapAniListAnime);
+
+        // "Latest Episodes": most recently aired episodes, one entry per
+        // anime (keep the newest), enriched with the episode number and a
+        // per-episode still when AniList exposes one.
+        const providerCount = providers.length;
+        const seenLatest = new Set<string>();
+
+        const mappedLatestEpisodes = airingSchedules
+            .filter((schedule): schedule is AiringSchedule & {
+                media: AniListAnime;
+            } => {
+                if (!schedule.media) return false;
+
+                const id = String(schedule.media.id);
+
+                if (seenLatest.has(id)) return false;
+
+                seenLatest.add(id);
+                return true;
+            })
+            .slice(0, 24)
+            .map((schedule) => {
+                const anime = mapAniListAnime(schedule.media);
+
+                const still = anime.streamingEpisodes.find(
+                    (episode) =>
+                        episode.number === schedule.episode
+                )?.thumbnail;
+
+                return {
+                    ...anime,
+                    latestEpisode: schedule.episode,
+                    airingAt: schedule.airingAt,
+                    episodeThumbnail:
+                        still ||
+                        anime.banner ||
+                        anime.poster,
+                    providerCount,
+                };
+            });
 
         // TMDB artwork is only needed for the 5 anime shown in the hero.
         const heroAnime = await Promise.all(
@@ -276,9 +393,11 @@ export async function GET() {
         mappedTopAiring.splice(0, 5, ...heroAnime);
 
         return NextResponse.json({
+            latestEpisodes: mappedLatestEpisodes,
             topAiring: mappedTopAiring,
             mostPopular: mappedMostPopular,
             mostFavorite: mappedMostFavorite,
+            latestCompleted: mappedLatestCompleted,
             recentlyAdded: mappedRecentlyAdded,
             topUpcoming: mappedTopUpcoming,
         });

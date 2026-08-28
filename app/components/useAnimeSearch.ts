@@ -6,9 +6,9 @@ import type { Anime } from "../data/anime";
 /**
  * Shared anime-search hook.
  *
- * Wraps the EXISTING `/api/anime/browse?search=` endpoint (the same one the
- * /anime/browse page uses) so the home-page search bar and the /search page
- * don't each reimplement fetching / debouncing / de-duping.
+ * Wraps the EXISTING `/api/anime/browse?search=` endpoint (also used by the
+ * /genre pages) so the home-page search bar and the /search page don't each
+ * reimplement fetching / debouncing / de-duping.
  */
 
 type BrowseSearchResponse = {

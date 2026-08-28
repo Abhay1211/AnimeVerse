@@ -13,10 +13,10 @@ type Mode = "search" | "ai";
  * Dedicated search / AI page.
  *
  *   - Search mode (default): anime search via the existing
- *     /api/anime/browse?search= endpoint, rendered with the existing
- *     <AnimeCard> + .anime-browse-grid.
- *   - Ask AI mode: placeholder — there is no AI backend in the project yet,
- *     so the toggle switches the view but the action is disabled.
+ *     /api/anime/browse?search= endpoint (useAnimeSearch), rendered with the
+ *     existing <AnimeCard> + .anime-browse-grid.
+ *   - Ask AI mode: there is no AI backend yet, so the toggle switches the view
+ *     but the action stays disabled (unchanged behaviour).
  *
  * Renders the shared <AnimeNavbar> exactly like the other pages.
  */
@@ -40,16 +40,6 @@ export default function SearchPage() {
             <AnimeNavbar />
 
             <main className="anime-browse-page search-page">
-                <section className="anime-browse-header">
-                    <span className="anime-browse-label">
-                        {"/// ANIMEVERSE — QUERY"}
-                    </span>
-
-                    <h1>SEARCH</h1>
-
-                    <p>Find an anime, or ask the AI.</p>
-                </section>
-
                 <div className="search-page-toggle">
                     <button
                         type="button"
@@ -59,7 +49,8 @@ export default function SearchPage() {
                         onClick={() => setMode("search")}
                         aria-pressed={mode === "search"}
                     >
-                        SEARCH
+                        <Search size={13} aria-hidden="true" />
+                        Search
                     </button>
 
                     <button
@@ -68,7 +59,8 @@ export default function SearchPage() {
                         onClick={() => setMode("ai")}
                         aria-pressed={mode === "ai"}
                     >
-                        ASK AI
+                        <Sparkles size={13} aria-hidden="true" />
+                        Ask AI
                     </button>
                 </div>
 
@@ -95,8 +87,8 @@ export default function SearchPage() {
                         }}
                         placeholder={
                             mode === "search"
-                                ? "SEARCH ANIME..."
-                                : "ASK THE AI ANYTHING ABOUT ANIME..."
+                                ? "Search anime..."
+                                : "Ask the AI anything about anime..."
                         }
                         aria-label={
                             mode === "search"
@@ -113,10 +105,7 @@ export default function SearchPage() {
                             className="search-page-submit"
                             onClick={runSearch}
                         >
-                            SEARCH
-                            <span aria-hidden="true">
-                                &gt;&gt;&gt;
-                            </span>
+                            Search
                         </button>
                     ) : (
                         <button
@@ -125,14 +114,16 @@ export default function SearchPage() {
                             disabled
                             title="AI chat is not available yet"
                         >
-                            ASK
-                            <Sparkles
-                                size={13}
-                                aria-hidden="true"
-                            />
+                            Ask
                         </button>
                     )}
                 </div>
+
+                {mode === "search" && !submitted && (
+                    <p className="search-page-hint">
+                        Type something to search for anime.
+                    </p>
+                )}
 
                 {mode === "search" && submitted && (
                     <>
@@ -184,10 +175,10 @@ export default function SearchPage() {
                 )}
 
                 {mode === "ai" && (
-                    <div className="search-page-ai-note">
-                        AI CHAT IS NOT AVAILABLE YET — SWITCH TO
-                        SEARCH MODE TO FIND ANIME.
-                    </div>
+                    <p className="search-page-hint">
+                        AI chat is not available yet — switch to
+                        Search to find anime.
+                    </p>
                 )}
             </main>
         </>

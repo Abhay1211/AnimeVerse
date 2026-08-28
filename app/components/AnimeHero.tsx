@@ -6,6 +6,7 @@ import {
     LayoutGrid,
     Play,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
     useEffect,
     useRef,
@@ -29,6 +30,8 @@ type AnimeHeroProps = {
 };
 
 export default function AnimeHero({ anime }: AnimeHeroProps) {
+    const router = useRouter();
+
     const [activeIndex, setActiveIndex] = useState(0);
 
     // Drag state
@@ -326,6 +329,9 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                 <button
                     type="button"
                     className="anime-hero-watch"
+                    onClick={() =>
+                        router.push(`/anime/${activeAnime.id}`)
+                    }
                 >
                     <Play
                         size={16}
@@ -338,6 +344,7 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                 <button
                     type="button"
                     className="anime-hero-browse"
+                    onClick={() => router.push("/browse")}
                 >
                     <LayoutGrid size={16} />
 

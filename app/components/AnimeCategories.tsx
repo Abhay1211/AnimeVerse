@@ -1,31 +1,13 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useRef } from "react";
 
-const genres = [
-    "ACTION",
-    "ADVENTURE",
-    "COMEDY",
-    "DRAMA",
-    "ECCHI",
-    "FANTASY",
-    "HORROR",
-    "MAHOU SHOUJO",
-    "MECHA",
-    "MUSIC",
-    "MYSTERY",
-    "PSYCHOLOGICAL",
-    "ROMANCE",
-    "SCI-FI",
-    "SLICE OF LIFE",
-    "SPORTS",
-    "SUPERNATURAL",
-    "THRILLER",
-];
+import { GENRES } from "../data/genres";
 
 export default function AnimeCategories() {
-    const [selectedGenre, setSelectedGenre] = useState("ALL");
+    const router = useRouter();
     const categoriesRef = useRef<HTMLDivElement>(null);
 
     const scrollCategories = (direction: "left" | "right") => {
@@ -50,18 +32,18 @@ export default function AnimeCategories() {
             ref={categoriesRef}
             className="anime-categories-track"
         >
-            {genres.map((genre) => (
+            {GENRES.map((genre) => (
                 <button
                     key={genre}
                     type="button"
-                    className={`anime-category ${
-                        selectedGenre === genre
-                            ? "anime-category-active"
-                            : ""
-                    }`}
-                    onClick={() => setSelectedGenre(genre)}
+                    className="anime-category"
+                    onClick={() =>
+                        router.push(
+                            `/genre/${encodeURIComponent(genre)}`
+                        )
+                    }
                 >
-                    {genre}
+                    {genre.toUpperCase()}
                 </button>
             ))}
         </div>

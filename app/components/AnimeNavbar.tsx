@@ -21,7 +21,7 @@ const navItems = [
     {
         label: "Browse",
         icon: Grid2X2,
-        href: "/anime/browse",
+        href: "/browse",
     },
     {
         label: "Alerts",
@@ -101,8 +101,7 @@ export default function AnimeNavbar() {
                         pathname === item.href ||
                         (
                             item.href === "/anime" &&
-                            pathname.startsWith("/anime/") &&
-                            pathname !== "/anime/browse"
+                            pathname.startsWith("/anime/")
                         );
 
                     return (

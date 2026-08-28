@@ -6,6 +6,83 @@ import {
 
 const ANILIST_API = "https://graphql.anilist.co";
 
+/*
+ * AniList's `Page.pageInfo.total` is hard-capped and does not reflect the
+ * active filters (it returns 5000 for every genre). To show a real genre
+ * total we probe the first N result pages in a single aliased query and add
+ * up what actually comes back — exact for result sets up to N*50, otherwise
+ * reported as "N*50+".
+ */
+const COUNT_PROBE_PAGES = 20;
+const COUNT_PROBE_PER_PAGE = 50;
+
+const countQuery = `
+    query (
+        $search: String
+        $genre: [String]
+        $format: [MediaFormat]
+        $status: MediaStatus
+        $season: MediaSeason
+        $seasonYear: Int
+    ) {
+        ${Array.from(
+            { length: COUNT_PROBE_PAGES },
+            (_, index) => `
+        p${index + 1}: Page(page: ${index + 1}, perPage: ${COUNT_PROBE_PER_PAGE}) {
+            media(
+                type: ANIME
+                search: $search
+                genre_in: $genre
+                format_in: $format
+                status: $status
+                season: $season
+                seasonYear: $seasonYear
+                sort: POPULARITY_DESC
+            ) {
+                id
+            }
+        }`
+        ).join("\n")}
+    }
+`;
+
+async function probeTotal(
+    variables: Record<string, unknown>
+): Promise<{ total: number; capped: boolean }> {
+    const response = await fetch(ANILIST_API, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "User-Agent": "AnimeVerse",
+        },
+        body: JSON.stringify({ query: countQuery, variables }),
+        next: { revalidate: 3600 },
+    });
+
+    const json = await response.json();
+
+    if (!response.ok || json.errors || !json.data) {
+        return { total: 0, capped: false };
+    }
+
+    let total = 0;
+    let capped = true;
+
+    for (let page = 1; page <= COUNT_PROBE_PAGES; page++) {
+        const pageLength: number =
+            json.data[`p${page}`]?.media?.length ?? 0;
+
+        total += pageLength;
+
+        if (pageLength < COUNT_PROBE_PER_PAGE) {
+            capped = false;
+            break;
+        }
+    }
+
+    return { total, capped };
+}
+
 const query = `
     query (
         $page: Int
@@ -111,7 +188,17 @@ export async function GET(request: Request) {
         );
 
         const search = searchParams.get("search")?.trim();
-        const genre = searchParams.get("genre")?.trim();
+
+        // The genre page asks for an accurate total separately (countOnly=1)
+        // so the heavier probe never blocks the results request.
+        const countOnly = searchParams.get("countOnly") === "1";
+
+        // Accept one or many `genre` params (?genre=Action&genre=Comedy).
+        const genres = searchParams
+            .getAll("genre")
+            .map((value) => value.trim())
+            .filter(Boolean);
+
         const format = searchParams.get("format")?.trim();
         const status = searchParams.get("status")?.trim();
         const season = searchParams.get("season")?.trim();
@@ -144,8 +231,8 @@ export async function GET(request: Request) {
             variables.search = search;
         }
 
-        if (genre) {
-            variables.genre = [genre];
+        if (genres.length) {
+            variables.genre = genres;
         }
 
         if (format) {
@@ -162,6 +249,18 @@ export async function GET(request: Request) {
 
         if (seasonYear !== undefined) {
             variables.seasonYear = seasonYear;
+        }
+
+        // Accurate-total request: skip the results query entirely.
+        if (countOnly) {
+            const { total, capped } = await probeTotal(variables);
+
+            return NextResponse.json({
+                pagination: {
+                    total,
+                    totalIsCapped: capped,
+                },
+            });
         }
 
         const response = await fetch(ANILIST_API, {

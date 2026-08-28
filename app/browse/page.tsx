@@ -1,20 +1,23 @@
 "use client";
 
-import AnimeHero from "../components/AnimeHero";
-import AnimeSearch from "../components/AnimeSearch";
-import AnimeCategories from "../components/AnimeCategories";
+import AnimeNavbar from "../components/AnimeNavbar";
 import AnimeRow from "../components/AnimeRow";
 import LatestEpisodes from "../components/LatestEpisodes";
-import TopTen from "../components/TopTen";
-import AnimeNavbar from "../components/AnimeNavbar";
 import { useHomeAnime } from "../components/useHomeAnime";
 
-export default function AnimePage() {
+/**
+ * /browse — the main anime discovery page.
+ *
+ * Every section is driven by the single `GET /api/anime/home` payload (shared
+ * with /anime via useHomeAnime), rendered with the existing <AnimeRow> /
+ * <AnimeCard> and the <LatestEpisodes> section.
+ */
+export default function BrowsePage() {
     const {
         latestEpisodes,
         topAiring,
         mostPopular,
-        mostFavorite,
+        latestCompleted,
         recentlyAdded,
         topUpcoming,
         loading,
@@ -24,20 +27,22 @@ export default function AnimePage() {
         <>
             <AnimeNavbar />
 
-            <main className="anime-page">
+            <main className="browse-page">
+                <header className="browse-page-header">
+                    <h1>Browse Anime</h1>
+                </header>
 
-            <AnimeHero anime={topAiring.slice(0, 5)} />
-
-            <AnimeSearch />
-
-            <AnimeCategories />
-
-            <div className="anime-catalog">
                 {loading ? (
-                    <p>Loading anime...</p>
+                    <p className="browse-page-loading">
+                        Loading anime...
+                    </p>
                 ) : (
-                    <>
-                        <LatestEpisodes episodes={latestEpisodes} />
+                    <div className="browse-page-sections">
+                        <LatestEpisodes
+                            episodes={latestEpisodes}
+                            cardStyle="poster"
+                            expandable={false}
+                        />
 
                         <AnimeRow
                             title="TOP AIRING"
@@ -52,9 +57,9 @@ export default function AnimePage() {
                         />
 
                         <AnimeRow
-                            title="MOST FAVORITE"
+                            title="LATEST COMPLETED"
                             label="///"
-                            anime={mostFavorite}
+                            anime={latestCompleted}
                         />
 
                         <AnimeRow
@@ -68,16 +73,8 @@ export default function AnimePage() {
                             label="///"
                             anime={topUpcoming}
                         />
-                    </>
+                    </div>
                 )}
-            </div>
-
-            {/* Top 10 intentionally stays at the bottom */}
-            <TopTen
-                day={topAiring}
-                week={mostPopular}
-                month={mostFavorite}
-            />
             </main>
         </>
     );
