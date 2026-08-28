@@ -19,9 +19,9 @@ const navItems = [
         href: "/anime",
     },
     {
-        label: "Browse",
+        label: "Explore",
         icon: Grid2X2,
-        href: "/browse",
+        href: "/explore",
     },
     {
         label: "Alerts",

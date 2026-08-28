@@ -1,12 +1,45 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AnimeNavbar from "../../components/AnimeNavbar";
 import ProviderModal from "../../components/ProviderModal";
 
-import type { Anime } from "../../data/anime";
+import {
+    buildWatchStructure,
+    formatScore,
+    type Anime,
+} from "../../data/anime";
+
+/** Toggle an anime id inside a localStorage-backed list. Returns the new "on" state. */
+function toggleStoredId(key: string, id: string): boolean {
+    try {
+        const current: string[] = JSON.parse(
+            window.localStorage.getItem(key) || "[]"
+        );
+        const has = current.includes(id);
+        const next = has
+            ? current.filter((item) => item !== id)
+            : [...current, id];
+
+        window.localStorage.setItem(key, JSON.stringify(next));
+        return !has;
+    } catch {
+        return false;
+    }
+}
+
+function readStoredId(key: string, id: string): boolean {
+    try {
+        const current: string[] = JSON.parse(
+            window.localStorage.getItem(key) || "[]"
+        );
+        return current.includes(id);
+    } catch {
+        return false;
+    }
+}
 
 function formatTimeLeft(seconds: number) {
     const days = Math.floor(seconds / 86400);
@@ -62,6 +95,79 @@ export default function AnimeDetailPage() {
     const [showProviderModal, setShowProviderModal] = useState(false);
     const [selectedProvider, setSelectedProvider] =
         useState<string>("megaplay");
+
+    const [favorite, setFavorite] = useState(false);
+    const [planned, setPlanned] = useState(false);
+    const [toast, setToast] = useState<string | null>(null);
+
+    const showToast = useCallback((message: string) => {
+        setToast(message);
+        window.setTimeout(() => setToast(null), 2200);
+    }, []);
+
+    // Franchise season count. The detail API walks the full AniList
+    // prequel/sequel chain and returns `totalSeasons`; fall back to the
+    // 1-hop client calculation only if that field is missing.
+    const totalSeasons = useMemo(() => {
+        if (!anime) return null;
+        return (
+            anime.totalSeasons ??
+            Math.max(1, buildWatchStructure(anime).seasons.length)
+        );
+    }, [anime]);
+
+    // Restore favourite / plan-to-watch state from localStorage for this anime.
+    useEffect(() => {
+        if (!id) return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setFavorite(readStoredId("animeverse:favorites", id));
+        setPlanned(readStoredId("animeverse:plan-to-watch", id));
+    }, [id]);
+
+    const toggleFavorite = () => {
+        const on = toggleStoredId("animeverse:favorites", id);
+        setFavorite(on);
+        showToast(
+            on ? "Added to favorites" : "Removed from favorites"
+        );
+    };
+
+    const togglePlanned = () => {
+        const on = toggleStoredId(
+            "animeverse:plan-to-watch",
+            id
+        );
+        setPlanned(on);
+        showToast(
+            on ? "Added to Plan to Watch" : "Removed from Plan to Watch"
+        );
+    };
+
+    const shareAnime = async () => {
+        const url = window.location.href;
+
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: anime?.title,
+                    text: anime
+                        ? `Watch ${anime.title} on AnimeVerse`
+                        : undefined,
+                    url,
+                });
+                return;
+            } catch {
+                // user cancelled the share sheet — fall through to copy
+            }
+        }
+
+        try {
+            await navigator.clipboard.writeText(url);
+            showToast("Link copied to clipboard");
+        } catch {
+            showToast("Couldn't copy the link");
+        }
+    };
 
     useEffect(() => {
         if (!id) return;
@@ -247,12 +353,14 @@ export default function AnimeDetailPage() {
 
                                 <div className="anime-detail-genres">
                                     {anime.genres.map((genre) => (
-                                        <a
+                                        <Link
                                             key={genre}
-                                            href={`/genre/${genre.toLowerCase()}`}
+                                            href={`/genre/${encodeURIComponent(
+                                                genre
+                                            )}`}
                                         >
                                             {genre}
-                                        </a>
+                                        </Link>
                                     ))}
                                 </div>
 
@@ -283,14 +391,18 @@ export default function AnimeDetailPage() {
 
                                     <button
                                         type="button"
-                                        className="anime-detail-secondary"
+                                        className={`anime-detail-secondary${
+                                            planned ? " is-active" : ""
+                                        }`}
+                                        aria-pressed={planned}
+                                        onClick={togglePlanned}
                                     >
                                         <svg
                                             xmlns="http://www.w3.org/2000/svg"
                                             width="14"
                                             height="14"
                                             viewBox="0 0 24 24"
-                                            fill="none"
+                                            fill={planned ? "currentColor" : "none"}
                                             stroke="currentColor"
                                             strokeWidth="2"
                                             strokeLinecap="round"
@@ -299,7 +411,9 @@ export default function AnimeDetailPage() {
                                             <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
                                         </svg>
 
-                                        Plan to Watch
+                                        {planned
+                                            ? "In Plan to Watch"
+                                            : "Plan to Watch"}
                                     </button>
                                 </div>
                             </div>
@@ -308,15 +422,23 @@ export default function AnimeDetailPage() {
                             <div className="anime-detail-poster">
                                 <button
                                     type="button"
-                                    className="anime-detail-favorite"
-                                    aria-label="Add to favorites"
+                                    className={`anime-detail-favorite${
+                                        favorite ? " is-active" : ""
+                                    }`}
+                                    aria-label={
+                                        favorite
+                                            ? "Remove from favorites"
+                                            : "Add to favorites"
+                                    }
+                                    aria-pressed={favorite}
+                                    onClick={toggleFavorite}
                                 >
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         width="14"
                                         height="14"
                                         viewBox="0 0 24 24"
-                                        fill="none"
+                                        fill={favorite ? "currentColor" : "none"}
                                         stroke="currentColor"
                                         strokeWidth="2"
                                         strokeLinecap="round"
@@ -334,7 +456,12 @@ export default function AnimeDetailPage() {
                                 <div className="anime-detail-poster-overlay">
                                     <div>
                                         <p>Seasons</p>
-                                        <strong>—</strong>
+                                        <strong>
+                                            {anime.type?.toUpperCase() ===
+                                            "MOVIE"
+                                                ? "—"
+                                                : totalSeasons ?? "—"}
+                                        </strong>
                                     </div>
 
                                     <svg
@@ -367,6 +494,7 @@ export default function AnimeDetailPage() {
                                 type="button"
                                 className="anime-detail-share-btn"
                                 aria-label="Share"
+                                onClick={shareAnime}
                             >
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
@@ -419,7 +547,14 @@ export default function AnimeDetailPage() {
                         <div className="anime-detail-body">
                             <div className="anime-detail-genre-pills">
                                 {anime.genres.map((genre) => (
-                                    <span key={genre}>{genre}</span>
+                                    <Link
+                                        key={genre}
+                                        href={`/genre/${encodeURIComponent(
+                                            genre
+                                        )}`}
+                                    >
+                                        {genre}
+                                    </Link>
                                 ))}
                             </div>
 
@@ -543,7 +678,22 @@ export default function AnimeDetailPage() {
                                 <div>
                                     <span>Episodes</span>
                                     <strong>
-                                        {anime.episodes ?? "Unknown"}
+                                        {anime.type?.toUpperCase() ===
+                                        "MOVIE"
+                                            ? "—"
+                                            : anime.episodes ??
+                                              "Unknown"}
+                                    </strong>
+                                </div>
+
+                                <div>
+                                    <span>Seasons</span>
+                                    <strong>
+                                        {anime.type?.toUpperCase() ===
+                                        "MOVIE"
+                                            ? "—"
+                                            : totalSeasons ??
+                                              "Unknown"}
                                     </strong>
                                 </div>
 
@@ -559,9 +709,8 @@ export default function AnimeDetailPage() {
                                 <div>
                                     <span>Score</span>
                                     <strong>
-                                        {anime.score
-                                            ? `${anime.score}%`
-                                            : "N/A"}
+                                        {formatScore(anime.score) ??
+                                            "N/A"}
                                     </strong>
                                 </div>
 
@@ -674,6 +823,12 @@ export default function AnimeDetailPage() {
                     </section>
                 </div>
             </main>
+
+            {toast && (
+                <div className="anime-detail-toast" role="status">
+                    {toast}
+                </div>
+            )}
 
             {/* PROVIDER MODAL */}
             <ProviderModal

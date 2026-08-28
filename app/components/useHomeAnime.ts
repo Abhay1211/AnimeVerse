@@ -19,6 +19,8 @@ export type LatestEpisode = Anime & {
 };
 
 export type HomeAnimeData = {
+    /** Top-5 airing anime with TMDB backdrop + logo — hero carousel only. */
+    heroAnime: Anime[];
     latestEpisodes: LatestEpisode[];
     topAiring: Anime[];
     mostPopular: Anime[];
@@ -29,6 +31,7 @@ export type HomeAnimeData = {
 };
 
 const EMPTY: HomeAnimeData = {
+    heroAnime: [],
     latestEpisodes: [],
     topAiring: [],
     mostPopular: [],

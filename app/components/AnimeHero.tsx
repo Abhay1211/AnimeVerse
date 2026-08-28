@@ -1,18 +1,13 @@
 "use client";
 
-import {
-    ArrowLeft,
-    ArrowRight,
-    LayoutGrid,
-    Play,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, LayoutGrid, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
     useEffect,
     useRef,
     useState,
     type CSSProperties,
-    type PointerEvent,
+    type PointerEvent as ReactPointerEvent,
 } from "react";
 
 type Anime = {
@@ -23,180 +18,150 @@ type Anime = {
     poster: string;
     banner: string | null;
     logo: string | null;
+    type?: string;
+    episodes?: number | null;
+    year?: number | null;
 };
 
 type AnimeHeroProps = {
     anime: Anime[];
 };
 
+/** Horizontal drag distance (px) that equals moving the carousel one card. */
+const DRAG_STEP = 128;
+/** Cards rendered on each side of the active card (7-card fan needs ≥ 3). */
+const RENDER_RADIUS = 4;
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** AniList descriptions are HTML — flatten to plain text for the hero blurb. */
+const stripHtml = (html: string) =>
+    html
+        .replace(/<br\s*\/?>/gi, " ")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&[a-z]+;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
 export default function AnimeHero({ anime }: AnimeHeroProps) {
     const router = useRouter();
+    const total = anime.length;
 
     const [activeIndex, setActiveIndex] = useState(0);
+    // Fractional offset (in cards) the whole fan is shifted by while dragging.
+    const [dragUnits, setDragUnits] = useState(0);
+    const [dragging, setDragging] = useState(false);
 
-    // Drag state
-    const dragStartX = useRef(0);
-    const dragCurrentX = useRef(0);
-    const isDragging = useRef(false);
-    const draggedIndex = useRef<number | null>(null);
+    const pointerId = useRef<number | null>(null);
+    const startX = useRef(0);
+    const movedRef = useRef(false);
+    const pressedCard = useRef<number | null>(null);
 
-    const [dragX, setDragX] = useState(0);
-    const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
-    /*
-     * Automatically change anime every 8 seconds.
-     * Pause while dragging.
-     */
+    const renderRadius = Math.min(
+        RENDER_RADIUS,
+        Math.max(1, Math.floor((total - 1) / 2))
+    );
+
+    // Auto-advance, paused while the pointer is down on the carousel.
     useEffect(() => {
-        if (anime.length < 2) return;
+        if (total < 2) return;
 
-        const interval = window.setInterval(() => {
-            if (isDragging.current) return;
-
-            setActiveIndex((current) =>
-                current === anime.length - 1
-                    ? 0
-                    : current + 1
-            );
+        const id = window.setInterval(() => {
+            if (pointerId.current !== null) return;
+            setActiveIndex((i) => (i + 1) % total);
         }, 8000);
 
-        return () => window.clearInterval(interval);
-    }, [anime.length]);
+        return () => window.clearInterval(id);
+    }, [total]);
 
-    /*
-     * Carousel navigation.
-     */
-    const nextAnime = () => {
-        setActiveIndex((current) =>
-            current === anime.length - 1
-                ? 0
-                : current + 1
-        );
+    const wrap = (i: number) => ((i % total) + total) % total;
+    const goTo = (i: number) => setActiveIndex(wrap(i));
+    const next = () => goTo(activeIndex + 1);
+    const prev = () => goTo(activeIndex - 1);
+
+    /** Signed shortest offset of card `i` from the active card. */
+    const circularOffset = (i: number) => {
+        let o = i - activeIndex;
+        if (o > total / 2) o -= total;
+        if (o < -total / 2) o += total;
+        return o;
     };
 
-    const previousAnime = () => {
-        setActiveIndex((current) =>
-            current === 0
-                ? anime.length - 1
-                : current - 1
-        );
-    };
-    /*
-     * Start grabbing a card.
-     */
-    const handlePointerDown = (
-        event: PointerEvent<HTMLButtonElement>,
-        index: number
+    const onPointerDown = (
+        event: ReactPointerEvent<HTMLDivElement>
     ) => {
-        if (anime.length < 2) return;
+        if (total < 2) return;
 
-        isDragging.current = true;
+        pointerId.current = event.pointerId;
+        startX.current = event.clientX;
+        movedRef.current = false;
 
-        dragStartX.current = event.clientX;
-        dragCurrentX.current = event.clientX;
+        const card = (event.target as HTMLElement).closest<HTMLElement>(
+            "[data-card-index]"
+        );
+        pressedCard.current = card
+            ? Number(card.dataset.cardIndex)
+            : null;
 
-        draggedIndex.current = index;
-        setDraggingIndex(index);
-        setDragX(0);
+        setDragging(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+    };
 
-        event.currentTarget.setPointerCapture(
-            event.pointerId
+    const onPointerMove = (
+        event: ReactPointerEvent<HTMLDivElement>
+    ) => {
+        if (pointerId.current !== event.pointerId) return;
+
+        const dx = event.clientX - startX.current;
+        if (Math.abs(dx) > 4) movedRef.current = true;
+
+        const limit = renderRadius - 0.5;
+        setDragUnits(
+            Math.max(-limit, Math.min(limit, dx / DRAG_STEP))
         );
     };
 
-    /*
-     * Card follows the pointer while being grabbed.
-     */
-    const handlePointerMove = (
-        event: PointerEvent<HTMLButtonElement>
+    const endDrag = (
+        event: ReactPointerEvent<HTMLDivElement>
     ) => {
-        if (!isDragging.current) return;
+        if (pointerId.current !== event.pointerId) return;
 
-        dragCurrentX.current = event.clientX;
+        pointerId.current = null;
+        setDragging(false);
 
-        const distance =
-            event.clientX - dragStartX.current;
-
-        setDragX(distance);
-    };
-
-    /*
-     * Release the card.
-     */
-    const handlePointerUp = () => {
-        if (!isDragging.current) return;
-
-        const distance =
-            dragCurrentX.current - dragStartX.current;
-
-        const index = draggedIndex.current;
-
-        isDragging.current = false;
-        draggedIndex.current = null;
-
-        // Small movement = just release the card.
-        if (
-            Math.abs(distance) < 50 ||
-            index === null
-        ) {
-            setDraggingIndex(null);
-            setDragX(0);
+        if (!movedRef.current) {
+            // A tap, not a drag → focus the tapped card.
+            if (
+                pressedCard.current !== null &&
+                pressedCard.current !== activeIndex
+            ) {
+                goTo(pressedCard.current);
+            }
+            setDragUnits(0);
             return;
         }
 
-        const total = anime.length;
-
-        let offset = index - activeIndex;
-
-        // Keep the carousel circular.
-        if (offset > total / 2) {
-            offset -= total;
-        }
-
-        if (offset < -total / 2) {
-            offset += total;
-        }
-
-        /*
-         * First change the active card while the dragged
-         * position is still visible.
-         */
-        setActiveIndex(() => {
-            let next = activeIndex + offset;
-
-            if (next < 0) {
-                next += total;
-            }
-
-            if (next >= total) {
-                next -= total;
-            }
-
-            return next;
-        });
-
-        /*
-         * Let CSS animate the dragged card back into
-         * its new carousel position.
-         */
-        setDraggingIndex(null);
-        setDragX(0);
+        // Snap to the card closest to centre.
+        const steps = Math.round(dragUnits);
+        setDragUnits(0);
+        if (steps !== 0) goTo(activeIndex - steps);
     };
 
-    if (!anime.length) {
+    if (total === 0) {
         return (
             <section className="anime-hero">
-                <div className="anime-hero-error">
-                    Loading...
-                </div>
+                <div className="anime-hero-error">Loading...</div>
             </section>
         );
     }
 
     const activeAnime = anime[activeIndex];
+    const description = stripHtml(activeAnime.description || "");
+    const genres = activeAnime.genres?.slice(0, 4) ?? [];
 
     return (
         <section className="anime-hero">
-            {/* Background */}
+            {/* Background (AniList banner via TMDB, else AniList poster) */}
             <div
                 key={activeAnime.id}
                 className="anime-hero-background"
@@ -207,95 +172,86 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
 
             <div className="anime-hero-overlay" />
 
-            {/* Anime carousel */}
-            <div className="anime-carousel">
+            {/* Featured counters */}
+            <div className="anime-hero-counter anime-hero-counter-left">
+                FEATURED{" "}
+                <span className="anime-hero-counter-sep">/</span>{" "}
+                <span className="anime-hero-counter-num">
+                    {pad(activeIndex + 1)}
+                </span>
+            </div>
+
+            <div className="anime-hero-counter anime-hero-counter-right">
+                <span className="anime-hero-counter-num">
+                    {pad(activeIndex + 1)}
+                </span>{" "}
+                <span className="anime-hero-counter-sep">/</span>{" "}
+                {pad(total)}{" "}
+                <span className="anime-hero-counter-total">
+                    TOTAL
+                </span>
+            </div>
+
+            {/* 7-card fan carousel (poster = AniList coverImage.large) */}
+            <div
+                className={`anime-carousel${
+                    dragging ? " is-dragging" : ""
+                }`}
+                role="group"
+                aria-label="Featured anime carousel"
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+            >
                 {anime.map((item, index) => {
-                    const total = anime.length;
+                    const base = circularOffset(index);
+                    if (Math.abs(base) > renderRadius) return null;
 
-                    let offset =
-                        index - activeIndex;
-
-                    /*
-                     * Make carousel circular.
-                     */
-                    if (offset > total / 2) {
-                        offset -= total;
-                    }
-
-                    if (offset < -total / 2) {
-                        offset += total;
-                    }
-
+                    const offset = base + dragUnits;
                     const distance = Math.abs(offset);
-
-                    if (distance > 2) return null;
-
-                    const isDraggingCard =
-                        draggingIndex === index;
 
                     return (
                         <div
                             key={item.id}
-                            className={`anime-carousel-item ${index === activeIndex
-                                ? "active"
-                                : ""
-                                } ${isDraggingCard
-                                    ? "is-dragging"
+                            data-card-index={index}
+                            className={`anime-carousel-item${
+                                index === activeIndex
+                                    ? " active"
                                     : ""
-                                }`}
+                            }`}
                             style={
                                 {
                                     "--offset": offset,
                                     "--distance": distance,
-                                    "--drag-x":
-                                        draggingIndex === index
-                                            ? `${dragX}px`
-                                            : "0px",
                                 } as CSSProperties
                             }
                         >
-                            <button
-                                type="button"
-                                className={`anime-carousel-card ${isDraggingCard
-                                    ? "is-dragging"
-                                    : ""
-                                    }`}
-                                onPointerDown={(event) =>
-                                    handlePointerDown(
-                                        event,
-                                        index
-                                    )
-                                }
-                                onPointerMove={
-                                    handlePointerMove
-                                }
-                                onPointerUp={
-                                    handlePointerUp
-                                }
-                                onPointerCancel={
-                                    handlePointerUp
-                                }
-                                aria-label={`Drag ${item.title}`}
-                            >
+                            <div className="anime-carousel-card">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={item.poster}
-                                    alt={item.title}
+                                    alt=""
                                     draggable={false}
+                                    loading={
+                                        Math.abs(base) <= 1
+                                            ? "eager"
+                                            : "lazy"
+                                    }
                                 />
-
                                 <div className="anime-carousel-card-shade" />
-                            </button>
+                            </div>
                         </div>
                     );
                 })}
             </div>
 
-            {/* Carousel arrows */}
+            {/* Arrows */}
             <div className="anime-hero-controls">
                 <button
                     type="button"
                     className="anime-hero-arrow anime-hero-arrow-left"
-                    onClick={previousAnime}
+                    onClick={prev}
                     aria-label="Previous anime"
                 >
                     <ArrowLeft size={22} />
@@ -304,15 +260,42 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                 <button
                     type="button"
                     className="anime-hero-arrow anime-hero-arrow-right"
-                    onClick={nextAnime}
+                    onClick={next}
                     aria-label="Next anime"
                 >
                     <ArrowRight size={22} />
                 </button>
             </div>
 
-            {/* Anime logo / title */}
+            {/* Metadata + logo + genres + description */}
             <div className="anime-hero-title">
+                <p className="anime-hero-meta">
+                    {activeAnime.type && (
+                        <span className="anime-hero-meta-pill">
+                            <span className="anime-hero-meta-dot" />
+                            {activeAnime.type}
+                        </span>
+                    )}
+
+                    {activeAnime.episodes ? (
+                        <>
+                            <span className="anime-hero-meta-sep">
+                                |
+                            </span>
+                            <span>{activeAnime.episodes} EP</span>
+                        </>
+                    ) : null}
+
+                    {activeAnime.year ? (
+                        <>
+                            <span className="anime-hero-meta-sep">
+                                |
+                            </span>
+                            <span>{activeAnime.year}</span>
+                        </>
+                    ) : null}
+                </p>
+
                 {activeAnime.logo ? (
                     <img
                         src={activeAnime.logo}
@@ -322,9 +305,19 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                 ) : (
                     <h1>{activeAnime.title}</h1>
                 )}
+
+                {genres.length > 0 && (
+                    <p className="anime-hero-genres">
+                        {genres.join(" · ")}
+                    </p>
+                )}
+
+                {description && (
+                    <p className="anime-hero-desc">{description}</p>
+                )}
             </div>
 
-            {/* Main actions */}
+            {/* Main actions — DO NOT restyle */}
             <div className="anime-hero-actions">
                 <button
                     type="button"
@@ -333,10 +326,7 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                         router.push(`/anime/${activeAnime.id}`)
                     }
                 >
-                    <Play
-                        size={16}
-                        fill="currentColor"
-                    />
+                    <Play size={16} fill="currentColor" />
 
                     <span>WATCH NOW</span>
                 </button>

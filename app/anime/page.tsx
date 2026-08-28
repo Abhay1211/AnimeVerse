@@ -11,6 +11,7 @@ import { useHomeAnime } from "../components/useHomeAnime";
 
 export default function AnimePage() {
     const {
+        heroAnime,
         latestEpisodes,
         topAiring,
         mostPopular,
@@ -26,7 +27,13 @@ export default function AnimePage() {
 
             <main className="anime-page">
 
-            <AnimeHero anime={topAiring.slice(0, 5)} />
+            <AnimeHero
+                anime={
+                    heroAnime.length
+                        ? heroAnime
+                        : topAiring.slice(0, 15)
+                }
+            />
 
             <AnimeSearch />
 

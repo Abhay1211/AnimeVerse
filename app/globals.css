@@ -934,59 +934,82 @@ ANIME VERSE LOGO
 .anime-carousel {
   position: absolute;
   left: 50%;
-  top: 40%;
-  width: min(1000px, 75vw);
+  top: 31.5%;
+  width: min(1400px, 94vw);
   height: 430px;
 
   transform: translate(-50%, -50%);
 
-  perspective: 1200px;
+  perspective: 1700px;
   transform-style: preserve-3d;
 
   overflow: visible;
   z-index: 10;
 
-  pointer-events: none;
+  /* Whole-carousel grab/drag surface. */
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.anime-carousel.is-dragging {
+  cursor: grabbing;
 }
 
 .anime-carousel-item {
-  --card-width: 205px;
-  --card-height: 325px;
+  --card-width: 244px;
+  --card-height: 338px;
+
+  /* Fan geometry — overridden per breakpoint. */
+  --step: 150px;
+  --arc-drop: 16px;
+  --rot: 7deg;
+  --scale-falloff: 0.105;
 
   position: absolute;
-
   top: 50%;
   left: 50%;
 
   width: var(--card-width);
   height: var(--card-height);
 
-  transform:
-    translateX(calc(-50% + var(--offset) * 145px)) translateY(-50%) rotate(calc(var(--offset) * 6deg)) scale(calc(1 - var(--distance) * 0.09));
-
   transform-origin: center center;
 
-  opacity: calc(1 - var(--distance) * 0.14);
+  transform:
+    translateX(calc(-50% + var(--offset) * var(--step)))
+    translateY(calc(-50% + var(--distance) * var(--arc-drop)))
+    rotate(calc(var(--offset) * var(--rot)))
+    scale(calc(1 - var(--distance) * var(--scale-falloff)));
+
+  /* Fully opaque out to the 7th card, then a short cliff hides the
+     two off-stage buffer cards that only exist for smooth dragging. */
+  opacity: clamp(0, calc((4.1 - var(--distance)) * 0.85), 1);
+
+  filter: brightness(calc(1 - var(--distance) * 0.13));
+
+  z-index: calc(40 - var(--distance) * 8);
 
   transition:
-    transform 0.7s cubic-bezier(.2, .8, .2, 1),
-    opacity 0.5s ease,
-    filter 0.5s ease;
-
-  filter: brightness(calc(1 - var(--distance) * 0.12));
-
-  z-index: calc(20 - var(--distance));
+    transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.45s ease,
+    filter 0.45s ease;
 
   pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Cards track the pointer 1:1 while the user is dragging. */
+.anime-carousel.is-dragging .anime-carousel-item {
+  transition: none;
 }
 
 .anime-carousel-item.active {
-  z-index: 50;
+  z-index: 60;
+  opacity: 1;
 }
 
 .anime-carousel-card {
   position: absolute;
-
   inset: 0;
 
   width: 100%;
@@ -994,44 +1017,34 @@ ANIME VERSE LOGO
 
   padding: 0;
 
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
 
   background: #0a0a0a;
 
   overflow: hidden;
 
-  cursor: grab;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
 
-  pointer-events: auto;
-
-  transition:
-    transform 0.25s ease,
-    filter 0.5s ease,
-    box-shadow 0.5s ease;
+  transition: box-shadow 0.5s ease;
 
   user-select: none;
   -webkit-user-select: none;
 
-  touch-action: pan-y;
-}
-
-
-.anime-carousel-card:active,
-.anime-carousel-card.is-dragging {
-  cursor: grabbing;
+  /* so pointerdown's target is the card (→ its data-card-index) */
+  pointer-events: auto;
 }
 
 .anime-carousel-item:not(.active) .anime-carousel-card-shade {
-  background: rgba(0, 0, 0, 0.38);
+  background: rgba(0, 0, 0, 0.42);
 }
 
 .anime-carousel-item.active .anime-carousel-card {
-  border-color: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.5);
 
   box-shadow:
-    0 25px 70px rgba(0, 0, 0, 0.75),
-    0 0 35px rgba(255, 255, 255, 0.08);
+    0 30px 80px rgba(0, 0, 0, 0.8),
+    0 0 40px rgba(255, 255, 255, 0.1);
 }
 
 
@@ -1085,26 +1098,94 @@ ANIME VERSE LOGO
 .anime-hero-title {
   position: absolute;
   left: 50%;
-  bottom: 156px;
+  bottom: 104px;
   z-index: 30;
 
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  gap: 11px;
 
-  width: min(360px, 72vw);
-  min-height: 64px;
+  width: min(560px, 82vw);
 
   transform: translateX(-50%);
   text-align: center;
 }
 
-.anime-hero-main-logo {
+/* Metadata row — sits above the logo:  ● TV  |  13 EP  |  2018 */
+.anime-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.anime-hero-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 4px 12px;
+
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+
+  color: #fff;
+}
+
+.anime-hero-meta-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #d9b44a;
+}
+
+.anime-hero-meta-sep {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.anime-hero-main-logo,
+.anime-hero-logo {
   display: block;
   width: 100%;
-  max-height: 72px;
+  max-height: 84px;
   object-fit: contain;
   filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.7));
+}
+
+/* Genre row + description below the logo (AniList data). */
+.anime-hero-genres {
+  margin: 0;
+
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(217, 180, 74, 0.9);
+}
+
+.anime-hero-desc {
+  margin: 0;
+  max-width: 46ch;
+
+  font-family: "Manrope", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.62);
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .anime-hero-title h1 {
@@ -1120,7 +1201,7 @@ ANIME VERSE LOGO
   position: absolute;
 
   left: 50%;
-  bottom: 64px;
+  bottom: 26px;
 
   z-index: 30;
 
@@ -1248,6 +1329,48 @@ ANIME VERSE LOGO
 
 .anime-hero-arrow-right {
   right: 30px;
+}
+
+/* =========================================================
+   FEATURED / TOTAL COUNTERS
+   ========================================================= */
+
+.anime-hero-counter {
+  position: absolute;
+  top: 30px;
+  z-index: 45;
+
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+
+  pointer-events: none;
+}
+
+.anime-hero-counter-left {
+  left: 48px;
+  color: rgba(217, 180, 74, 0.95);
+}
+
+.anime-hero-counter-right {
+  right: 48px;
+}
+
+.anime-hero-counter-num {
+  color: rgba(217, 180, 74, 0.95);
+}
+
+.anime-hero-counter-sep {
+  color: rgba(255, 255, 255, 0.28);
+  margin: 0 2px;
+}
+
+.anime-hero-counter-total {
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* =========================================================
@@ -2812,52 +2935,96 @@ body {
 }
 
 
+/* TABLET — keep the fan, tighten it so 7 cards still fit without overflow */
+
+@media (max-width: 1180px) {
+  .anime-carousel {
+    width: 97vw;
+  }
+
+  .anime-carousel-item {
+    --card-width: 196px;
+    --card-height: 274px;
+    --step: 116px;
+    --scale-falloff: 0.12;
+  }
+
+  .anime-hero-counter-left {
+    left: 28px;
+  }
+
+  .anime-hero-counter-right {
+    right: 28px;
+  }
+}
+
 /* MOBILE */
 
 @media (max-width: 760px) {
   .anime-hero {
     height: 82vh;
-    min-height: 560px;
+    min-height: 620px;
   }
 
   .anime-carousel {
     width: 100%;
-    height: 430px;
-    top: 38%;
+    height: 380px;
+    top: 30%;
   }
 
   .anime-carousel-item {
-    width: 160px;
-    height: 250px;
-
-    transform:
-      translate(calc(-50% + var(--offset) * 92px + var(--drag-x)),
-        calc(-50% + var(--distance) * 20px)) rotate(calc(var(--offset) * 5deg + var(--drag-x) * 0.02)) scale(calc(1 - var(--distance) * 0.08));
-  }
-
-  .anime-carousel-item.active {
-    transform:
-      translate(calc(-50% + var(--drag-x)),
-        -50%) rotate(calc(var(--drag-x) * 0.02)) scale(1.08);
-  }
-
-  .anime-carousel-item.is-dragging {
-    z-index: 100;
-    transition: none !important;
+    --card-width: 158px;
+    --card-height: 224px;
+    --step: 70px;
+    --arc-drop: 13px;
+    --rot: 6deg;
+    --scale-falloff: 0.14;
   }
 
   .anime-hero-title {
-    bottom: 138px;
-    width: min(300px, 76vw);
-    min-height: 52px;
+    bottom: 96px;
+    width: min(360px, 88vw);
+    gap: 9px;
   }
 
-  .anime-hero-main-logo {
-    max-height: 56px;
+  .anime-hero-meta {
+    font-size: 10px;
+    gap: 9px;
+    letter-spacing: 0.14em;
+  }
+
+  .anime-hero-genres {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+  }
+
+  .anime-hero-desc {
+    font-size: 12px;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+
+  .anime-hero-counter {
+    top: 22px;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+  }
+
+  .anime-hero-counter-left {
+    left: 22px;
+  }
+
+  .anime-hero-counter-right {
+    right: 22px;
+  }
+
+  .anime-hero-main-logo,
+  .anime-hero-logo {
+    max-height: 62px;
   }
 
   .anime-hero-actions {
-    bottom: 72px;
+    bottom: 24px;
     gap: 9px;
   }
 
@@ -3999,8 +4166,8 @@ body {
 }
 
 .anime-hero {
-  height: 90vh;
-  min-height: 650px;
+  height: 82vh;
+  min-height: 700px;
   overflow: hidden;
   isolation: isolate;
   background: #050505;
@@ -4283,6 +4450,7 @@ body {
   position: absolute;
   top: 10px;
   right: 10px;
+  max-width: calc(100% - 20px);
 
   padding: 5px 9px;
 
@@ -4295,6 +4463,9 @@ body {
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* =========================
@@ -4732,6 +4903,8 @@ body {
 
 .anime-detail-genres a:hover {
   color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ACTIONS */
@@ -4777,6 +4950,11 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.anime-detail-secondary.is-active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #fff;
+}
+
 /* POSTER */
 
 .anime-detail-poster>div,
@@ -4792,8 +4970,22 @@ body {
   transform: scale(1.05);
 }
 
+.anime-detail-favorite {
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  color: rgba(255, 255, 255, 0.85);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
 .anime-detail-favorite:hover {
   color: #fff;
+  transform: scale(1.1);
+}
+
+.anime-detail-favorite.is-active {
+  color: #ff4d67;
 }
 
 .anime-detail-poster-overlay svg {
@@ -4852,6 +5044,42 @@ body {
 
 .anime-detail-share-btn:hover {
   color: var(--foreground);
+}
+
+/* Small transient feedback for share / favourite / plan-to-watch */
+.anime-detail-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 2000;
+
+  padding: 10px 18px;
+
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.95);
+  backdrop-filter: blur(8px);
+
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #fff;
+  white-space: nowrap;
+
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: animeDetailToastIn 0.2s ease;
+}
+
+@keyframes animeDetailToastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .anime-detail-subtitle {
@@ -5184,7 +5412,8 @@ body {
   margin-top: 32px;
 }
 
-.anime-detail-genre-pills span {
+.anime-detail-genre-pills span,
+.anime-detail-genre-pills a {
   padding: 0.5rem 1.1rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -5193,6 +5422,15 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.65);
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.anime-detail-genre-pills a:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
 }
 
 /* =========================================================
@@ -6902,8 +7140,14 @@ CARD-SKELETON
    .anime-browse-empty / .anime-browse-pagination + <AnimeCard>.
    ========================================================= */
 
+/* The genre page has no top navbar (it floats at the bottom), so the
+   generic .anime-browse-page 110px top padding is just dead space. */
+.anime-browse-page.genre-page {
+  padding-top: 38px;
+}
+
 .genre-page-top {
-  margin-bottom: 30px;
+  margin-bottom: 26px;
 }
 
 .genre-page-eyebrow {
@@ -7185,14 +7429,18 @@ CARD-SKELETON
 }
 
 .genre-filter-option.is-selected {
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
+  font-weight: 600;
 }
 
-.genre-filter-option.is-selected::before {
+/* Checkmark sits on the right, like the reference. */
+.genre-filter-option.is-selected::after {
   content: "\2713";
-  margin-right: 8px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
+  margin-left: auto;
+  padding-left: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .genre-filter-empty {
@@ -7268,14 +7516,14 @@ CARD-SKELETON
   }
 }
 
-/* LIST view — reuses <AnimeCard>, laid out as compact full-width rows:
-   fixed-width poster thumbnail on the left, title / native / WATCH beside it.
-   Row height follows the content (no stretched empty space). */
+/* LIST view — reuses <AnimeCard layout="list">: a compact rounded row,
+   small poster + title + "TV · SUB N" meta. No WATCH button (the whole
+   row is the link). Consistent height, no wasted space. */
 
 .genre-results-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .genre-results-list .anime-card {
@@ -7289,20 +7537,35 @@ CARD-SKELETON
 
   display: flex;
   align-items: center;
-  min-height: 88px;
+  gap: 14px;
+
+  min-height: 76px;
+  padding: 10px 16px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .genre-results-list .anime-card:hover {
   transform: none;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-/* Fixed-size thumbnail — no aspect-ratio / stretch feedback loop. */
+/* Clean rounded rows — drop the sharp-corner "+" marks. */
+.genre-results-list .anime-card-frame-corner {
+  display: none;
+}
+
+/* Fixed-size poster — no aspect-ratio / stretch feedback loop. */
 .genre-results-list .anime-card-image {
-  flex: 0 0 60px;
-  width: 60px;
-  height: 86px;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 64px;
   align-self: center;
   aspect-ratio: auto;
+  border-radius: 6px;
 }
 
 .genre-results-list .anime-card-content {
@@ -7311,41 +7574,53 @@ CARD-SKELETON
 
   flex-direction: column;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
 
-  padding: 8px 16px;
-  border-top: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0;
+  border: 0;
 }
 
-.genre-results-list .anime-card-content p {
-  margin-top: 0;
-  min-height: 0;
+.genre-results-list .anime-card-content h3 {
+  font-size: 13px;
 }
 
-/* The poster score pill is sized for a full card; it overflows the small
-   list thumbnail, so drop it here (the type badge stays). */
-.genre-results-list .anime-card-score {
+/* Poster overlays don't belong on the tiny list thumbnail — the type
+   moves into the meta line below the title instead. */
+.genre-results-list .anime-card-score,
+.genre-results-list .anime-card-format {
   display: none;
 }
 
-.genre-results-list .anime-card-watch {
-  width: auto;
+.genre-results-list .anime-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
   min-height: 0;
-  align-self: flex-start;
 
-  margin-top: 6px;
-  padding: 6px 14px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.42);
 }
 
-@media (max-width: 640px) {
-  .genre-results-list .anime-card-image {
-    flex-basis: 52px;
-    width: 52px;
+.genre-results-list .anime-card-type {
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 560px) {
+  .genre-results-list .anime-card {
+    gap: 11px;
+    padding: 9px 12px;
   }
 
-  .genre-results-list .anime-card-content {
-    padding: 9px 12px;
+  .genre-results-list .anime-card-image {
+    flex-basis: 46px;
+    width: 46px;
+    height: 58px;
   }
 }
 
@@ -7473,8 +7748,15 @@ CARD-SKELETON
 
 .latest-episodes-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Same card width + gap as the collapsed carousel, wrapped into rows. */
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
   gap: 12px;
+
+  /* Match the collapsed scroller, which sits inside .row-rail between the
+     two nav buttons (34px each) + the rail's 10px gap. Keeps every card in
+     the same horizontal position before and after expanding. */
+  margin-left: 44px;
+  margin-right: 44px;
 }
 
 /* /browse: Latest Episodes reuses the poster <AnimeCard> so the section
@@ -7682,7 +7964,7 @@ CARD-SKELETON
 
 @media (max-width: 1100px) {
   .latest-episodes-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   }
 }
 
@@ -7702,6 +7984,9 @@ CARD-SKELETON
 
   .latest-episodes-grid {
     grid-template-columns: 1fr;
+    /* Mobile nav buttons are 30px + the rail's 10px gap. */
+    margin-left: 40px;
+    margin-right: 40px;
   }
 
   .row-nav {

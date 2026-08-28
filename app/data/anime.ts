@@ -51,6 +51,13 @@ export type Anime = {
     // Per-episode metadata (AniList streamingEpisodes → Crunchyroll listings).
     // Coverage varies per title: full, partial, or empty.
     streamingEpisodes: StreamingEpisode[];
+
+    /**
+     * Distinct TV seasons in this anime's franchise. Only the anime-detail
+     * API populates this (it walks the AniList prequel/sequel chain); list
+     * endpoints leave it undefined.
+     */
+    totalSeasons?: number;
 };
 
 export type StreamingEpisode = {
@@ -234,7 +241,18 @@ export function mapAniListAnime(anime: AniListAnime): Anime {
 
         year: anime.startDate.year,
 
-        episodes: anime.episodes,
+        // AniList only fills `episodes` once a run has a known total, so
+        // long-running shows (One Piece, …) report null. When the series is
+        // still airing we fall back to the count aired so far — a real,
+        // uncapped number — rather than showing nothing.
+        episodes:
+            anime.episodes ??
+            (anime.nextAiringEpisode
+                ? Math.max(
+                      0,
+                      anime.nextAiringEpisode.episode - 1
+                  )
+                : null),
 
         type: anime.format || "TV",
 
@@ -561,4 +579,102 @@ export function buildWatchStructure(anime: Anime): WatchStructure {
             0
         ),
     };
+}
+
+/* ============================================================
+   DISPLAY / DERIVED-VALUE HELPERS
+   Single source of truth for how AniList numbers become UI text.
+   ============================================================ */
+
+/**
+ * AniList `Media.averageScore` is a 0–100 integer. Anime Verse shows an
+ * out-of-10 rating: `84 → "8.4"`, `90 → "9.0"`. Returns `null` when there is
+ * no score so the caller can hide the badge.
+ */
+export function formatScore(
+    score: number | null | undefined
+): string | null {
+    if (score == null || Number.isNaN(score)) return null;
+    return (score / 10).toFixed(1);
+}
+
+/**
+ * Card / list metadata line built from the anime's real values:
+ *   TV      + 14   → "TV · 14 EP"
+ *   MOVIE   + 1    → "MOVIE"           (movies never show an episode count)
+ *   TV      + null → "TV"
+ *   OVA     + 4    → "OVA · 4 EP"
+ *
+ * `episodes` is always AniList `Media.episodes` (the anime's own total, which
+ * can legitimately be 1000+); it is never a pagination total or page size.
+ */
+export function formatEpisodeMeta(
+    format: string | null | undefined,
+    episodes: number | null | undefined
+): string {
+    const label = format || "";
+    const isMovie = label.toUpperCase() === "MOVIE";
+
+    if (isMovie || episodes == null || episodes < 1) {
+        return label;
+    }
+
+    return label ? `${label} · ${episodes} EP` : `${episodes} EP`;
+}
+
+/** Strip split-cour markers so "… Season 2 Part 2" / "… Cour 2" fold onto their base. */
+function stripSeasonSplitMarkers(title: string): string {
+    return title
+        .replace(
+            /\s*[-–—:]?\s*(?:part|cour|kai)\s+(?:\d+|i{1,3}|iv|vi{0,3}|v)\b.*$/i,
+            ""
+        )
+        .replace(
+            /\s*(?:\d+(?:st|nd|rd|th)|first|second|third|final)\s+(?:part|cour)\b.*$/i,
+            ""
+        )
+        .replace(/\s*[-–—:]\s*$/, "")
+        .trim();
+}
+
+/**
+ * How many distinct TV seasons a franchise has, given the walked
+ * prequel/sequel chain (TV / TV_SHORT entries, ordered by year).
+ *
+ *   - entries with an explicit "Season N" / "Nth Season" group by N
+ *     → "Season 2" and "Season 2 Part 2" count once
+ *   - unnumbered entries cluster with their adjacent split parts
+ *     → "The Final Season" + "… Part 2" + "… Part 3" count once
+ *     → a plain "S1" and a plain "S2" (both unnumbered) still count twice
+ *
+ * Handles One Piece (1), Mushoku Tensei (3), Re:ZERO (3) correctly and
+ * never hardcodes a number.
+ */
+export function countFranchiseSeasons(
+    chain: { title: string }[]
+): number {
+    if (chain.length === 0) return 1;
+
+    const numbered = new Set<number>();
+    let unnumberedClusters = 0;
+    let prevUnnumberedBase: string | null = null;
+
+    for (const entry of chain) {
+        const n = seasonNumberFromTitle(entry.title);
+
+        if (n != null) {
+            numbered.add(n);
+            prevUnnumberedBase = null;
+            continue;
+        }
+
+        const base = stripSeasonSplitMarkers(entry.title).toLowerCase();
+
+        if (base !== prevUnnumberedBase) {
+            unnumberedClusters += 1;
+            prevUnnumberedBase = base;
+        }
+    }
+
+    return Math.max(1, numbered.size + unnumberedClusters);
 }

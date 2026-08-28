@@ -78,8 +78,9 @@ export default function GenrePage() {
     }, [searchParams, rawGenre]);
 
     const [anime, setAnime] = useState<Anime[]>([]);
-    const [total, setTotal] = useState<number | null>(null);
-    const [totalCapped, setTotalCapped] = useState(false);
+    const [totalByKey, setTotalByKey] = useState<
+        Record<string, { total: number; capped: boolean }>
+    >({});
     const [hasNextPage, setHasNextPage] = useState(false);
     const [loading, setLoading] = useState(true);
     const [view, setView] = useState<ViewMode>("grid");
@@ -153,13 +154,12 @@ export default function GenrePage() {
 
     /*
      * Accurate genre total — a separate, heavier probe that must not block
-     * the results above. Only re-runs when the genre selection changes.
+     * the results above. Cached per genre selection, so switching back to a
+     * genre shows its count instantly.
      */
     useEffect(() => {
         let cancelled = false;
-
-        setTotal(null);
-        setTotalCapped(false);
+        const key = genreKey;
 
         const params = new URLSearchParams();
         params.set("countOnly", "1");
@@ -173,14 +173,19 @@ export default function GenrePage() {
                 if (cancelled) return;
 
                 if (typeof data.pagination?.total === "number") {
-                    setTotal(data.pagination.total);
-                    setTotalCapped(
-                        Boolean(data.pagination.totalIsCapped)
-                    );
+                    setTotalByKey((prev) => ({
+                        ...prev,
+                        [key]: {
+                            total: data.pagination.total,
+                            capped: Boolean(
+                                data.pagination.totalIsCapped
+                            ),
+                        },
+                    }));
                 }
             })
             .catch(() => {
-                /* leave the count as "Loading…" on failure */
+                /* leave the count as "…" on failure */
             });
 
         return () => {
@@ -190,6 +195,7 @@ export default function GenrePage() {
     }, [genreKey]);
 
     const heading = selectedGenres[0] ?? rawGenre;
+    const currentTotal = totalByKey[genreKey] ?? null;
 
     const applySelection = (next: string[]) => {
         // No genres left → leave the genre/browse experience entirely.
@@ -225,12 +231,16 @@ export default function GenrePage() {
                             <h1>{heading}</h1>
 
                             <p className="genre-page-results">
-                                {total === null
+                                {currentTotal === null
                                     ? "…"
-                                    : `${total.toLocaleString()}${
-                                          totalCapped ? "+" : ""
+                                    : `${currentTotal.total.toLocaleString()}${
+                                          currentTotal.capped
+                                              ? "+"
+                                              : ""
                                       } result${
-                                          total === 1 ? "" : "s"
+                                          currentTotal.total === 1
+                                              ? ""
+                                              : "s"
                                       }`}{" "}
                                 · page {page}
                             </p>
@@ -338,6 +348,7 @@ export default function GenrePage() {
                                     undefined
                                 }
                                 format={item.type}
+                                layout={view}
                             />
                         ))}
                     </div>

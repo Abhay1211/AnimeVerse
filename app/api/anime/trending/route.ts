@@ -52,6 +52,10 @@ const query = (
                 }
 
                 bannerImage
+
+                nextAiringEpisode {
+                    episode
+                }
             }
         }
     }

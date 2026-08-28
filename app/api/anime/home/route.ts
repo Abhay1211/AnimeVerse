@@ -14,6 +14,9 @@ type AiringSchedule = {
 
 const ANILIST_API = "https://graphql.anilist.co";
 
+/** How many featured anime the home hero carousel cycles through. */
+const HERO_COUNT = 15;
+
 const query = `
     query {
         topAiring: Page(page: 1, perPage: 20) {
@@ -40,6 +43,9 @@ const query = `
                     large
                 }
                 bannerImage
+                nextAiringEpisode {
+                    episode
+                }
             }
         }
 
@@ -66,6 +72,9 @@ const query = `
                     large
                 }
                 bannerImage
+                nextAiringEpisode {
+                    episode
+                }
             }
         }
 
@@ -92,6 +101,9 @@ const query = `
                     large
                 }
                 bannerImage
+                nextAiringEpisode {
+                    episode
+                }
             }
         }
 
@@ -119,6 +131,9 @@ const query = `
                     large
                 }
                 bannerImage
+                nextAiringEpisode {
+                    episode
+                }
             }
         }
 
@@ -146,6 +161,9 @@ const query = `
                     large
                 }
                 bannerImage
+                nextAiringEpisode {
+                    episode
+                }
             }
         }
 
@@ -173,6 +191,9 @@ const query = `
                     large
                 }
                 bannerImage
+                nextAiringEpisode {
+                    episode
+                }
             }
         }
 
@@ -203,6 +224,9 @@ const query = `
                         large
                     }
                     bannerImage
+                    nextAiringEpisode {
+                        episode
+                    }
                     streamingEpisodes {
                         title
                         thumbnail
@@ -212,35 +236,6 @@ const query = `
         }
     }
 `;
-
-async function addTmdbArtwork(anime: AniListAnime) {
-    const mappedAnime = mapAniListAnime(anime);
-
-    try {
-        const artwork = await getTmdbArtwork(
-            mappedAnime.title,
-            mappedAnime.year
-        );
-
-        if (artwork) {
-            mappedAnime.poster =
-                artwork.poster ?? mappedAnime.poster;
-
-            mappedAnime.banner =
-                artwork.banner ?? mappedAnime.banner;
-
-            mappedAnime.logo =
-                artwork.logo ?? null;
-        }
-    } catch (error) {
-        console.error(
-            `TMDB artwork failed for ${mappedAnime.title}:`,
-            error
-        );
-    }
-
-    return mappedAnime;
-}
 
 export async function GET() {
     try {
@@ -267,11 +262,6 @@ export async function GET() {
         }
 
         const result = await response.json();
-
-        console.log(
-            "ANI LIST HOME RESPONSE:",
-            JSON.stringify(result.data.topAiring.media[0], null, 2)
-        );
 
         if (result.errors) {
             console.error(
@@ -360,9 +350,12 @@ export async function GET() {
                 };
             });
 
-        // TMDB artwork is only needed for the 5 anime shown in the hero.
+        // The hero carousel is the ONLY place that needs TMDB's wide backdrop
+        // + stylised text logo (shown for whichever card is active). It is a
+        // separate list so every anime *card* — hero cards included — keeps
+        // AniList `coverImage.large`. TMDB never overrides `poster` here.
         const heroAnime = await Promise.all(
-            mappedTopAiring.slice(0, 5).map(async (anime) => {
+            mappedTopAiring.slice(0, HERO_COUNT).map(async (anime) => {
                 try {
                     const artwork = await getTmdbArtwork(
                         anime.title,
@@ -375,7 +368,7 @@ export async function GET() {
 
                     return {
                         ...anime,
-                        poster: artwork.poster ?? anime.poster,
+                        // poster stays AniList coverImage.large
                         banner: artwork.banner ?? anime.banner,
                         logo: artwork.logo ?? null,
                     };
@@ -390,9 +383,8 @@ export async function GET() {
             })
         );
 
-        mappedTopAiring.splice(0, 5, ...heroAnime);
-
         return NextResponse.json({
+            heroAnime,
             latestEpisodes: mappedLatestEpisodes,
             topAiring: mappedTopAiring,
             mostPopular: mappedMostPopular,

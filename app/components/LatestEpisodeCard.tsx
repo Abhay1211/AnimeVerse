@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
+import { formatScore } from "../data/anime";
 import type { LatestEpisode } from "./useHomeAnime";
 
 type LatestEpisodeCardProps = {
@@ -19,6 +20,7 @@ export default function LatestEpisodeCard({
     episode,
 }: LatestEpisodeCardProps) {
     const heading = `Episode ${episode.latestEpisode} - ${episode.title}`;
+    const rating = formatScore(episode.score);
 
     return (
         <Link
@@ -69,12 +71,12 @@ export default function LatestEpisodeCard({
                         : "Providers"}
                 </span>
 
-                {episode.score != null && (
+                {rating && (
                     <span className="latest-episode-pill">
                         <span className="latest-episode-pill-star">
                             ★
                         </span>
-                        {episode.score}%
+                        {rating}
                     </span>
                 )}
             </div>

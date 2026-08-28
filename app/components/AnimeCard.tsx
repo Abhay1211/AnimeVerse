@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { formatEpisodeMeta, formatScore } from "../data/anime";
+
 type AnimeCardProps = {
     id: string;
     title: string;
@@ -11,6 +13,11 @@ type AnimeCardProps = {
     score?: number;
     episodes?: number;
     format?: string;
+    /**
+     * "grid" (default) → poster card with native title + WATCH button.
+     * "list"           → compact row: title + "TV · SUB N" meta, no WATCH.
+     */
+    layout?: "grid" | "list";
 };
 
 export default function AnimeCard({
@@ -21,12 +28,16 @@ export default function AnimeCard({
     score,
     episodes,
     format,
+    layout = "grid",
 }: AnimeCardProps) {
     const router = useRouter();
 
     const openAnime = () => {
         router.push(`/anime/${id}`);
     };
+
+    const rating = formatScore(score);
+    const meta = formatEpisodeMeta(format, episodes);
 
     return (
         <article
@@ -50,16 +61,16 @@ export default function AnimeCard({
             <div className="anime-card-image">
                 <img src={image} alt={title} />
 
-                {score !== undefined && (
+                {rating && (
                     <span className="anime-card-badge anime-card-score">
                         <span className="anime-card-star">★</span>
-                        {score}%
+                        {rating}
                     </span>
                 )}
 
-                {(format || episodes) && (
+                {meta && (
                     <span className="anime-card-badge anime-card-format">
-                        {format || `EP ${episodes}`}
+                        {meta}
                     </span>
                 )}
             </div>
@@ -67,22 +78,40 @@ export default function AnimeCard({
             <div className="anime-card-content">
                 <h3>{title}</h3>
 
-                {nativeTitle && <p>{nativeTitle}</p>}
+                {layout === "list" ? (
+                    (format || episodes) && (
+                        <p className="anime-card-meta">
+                            {format && (
+                                <span className="anime-card-type">
+                                    {format}
+                                </span>
+                            )}
+                            {episodes &&
+                            format?.toUpperCase() !== "MOVIE" ? (
+                                <span>SUB {episodes}</span>
+                            ) : null}
+                        </p>
+                    )
+                ) : (
+                    nativeTitle && <p>{nativeTitle}</p>
+                )}
 
-                <Link
-                    href={`/anime/${id}`}
-                    className="anime-card-watch"
-                    onClick={(event) => event.stopPropagation()}
-                >
-                    <span className="anime-card-watch-bottom-left">+</span>
-                    <span className="anime-card-watch-bottom-right">+</span>
+                {layout !== "list" && (
+                    <Link
+                        href={`/anime/${id}`}
+                        className="anime-card-watch"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <span className="anime-card-watch-bottom-left">+</span>
+                        <span className="anime-card-watch-bottom-right">+</span>
 
-                    <span>WATCH</span>
+                        <span>WATCH</span>
 
-                    <span className="anime-card-arrows">
-                        &gt;&gt;&gt;
-                    </span>
-                </Link>
+                        <span className="anime-card-arrows">
+                            &gt;&gt;&gt;
+                        </span>
+                    </Link>
+                )}
             </div>
         </article>
     );
