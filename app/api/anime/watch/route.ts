@@ -5,7 +5,49 @@ import {
     providers,
 } from "../../../lib/providers";
 
-import type { AudioType } from "../../../lib/providers/types";
+import type {
+    AudioType,
+    VideoSource,
+} from "../../../lib/providers/types";
+import { buildSignedProxyUrl } from "../../../lib/megaplay-proxy";
+
+function toMegaPlayProxySource(source: VideoSource): VideoSource {
+    try {
+        const url = new URL(source.url);
+        if (
+            url.hostname !== "cdn.kryntal.top" ||
+            !url.pathname.startsWith("/anime/")
+        ) {
+            return source;
+        }
+
+        const proxyUrl = buildSignedProxyUrl(
+            "http://anime-verse.local",
+            url.href,
+            source.headers
+        );
+
+        return {
+            ...source,
+            url: proxyUrl,
+            // Headers are consumed by the server-side proxy and are not sent
+            // to the browser as unnecessary provider internals.
+            headers: undefined,
+            subtitles: source.subtitles?.map((subtitle) => {
+                return {
+                    ...subtitle,
+                    url: buildSignedProxyUrl(
+                        "http://anime-verse.local",
+                        subtitle.url,
+                        source.headers
+                    ),
+                };
+            }),
+        };
+    } catch {
+        return source;
+    }
+}
 
 const AUDIO_TYPES: AudioType[] = ["sub", "dub"];
 
@@ -60,12 +102,18 @@ export async function GET(request: Request) {
             );
         }
 
-        const sources =
+        let sources =
             await selectedProvider.getSources(
                 animeId,
                 episode,
                 type
             );
+
+        if (selectedProvider.id === "megaplay" || selectedProvider.id === "anikoto") {
+            sources = sources.map((source) =>
+                toMegaPlayProxySource(source)
+            );
+        }
 
         return NextResponse.json({
             animeId,

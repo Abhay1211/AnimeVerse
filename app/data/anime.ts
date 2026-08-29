@@ -130,6 +130,7 @@ export type AniListAnime = {
 
     coverImage: {
         large: string;
+        extraLarge?: string | null;
     };
 
     bannerImage: string | null;
@@ -256,7 +257,9 @@ export function mapAniListAnime(anime: AniListAnime): Anime {
 
         type: anime.format || "TV",
 
-        poster: anime.coverImage.large,
+        poster:
+            anime.coverImage.extraLarge ||
+            anime.coverImage.large,
 
         banner: anime.bannerImage,
 

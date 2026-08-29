@@ -34,15 +34,6 @@ const RENDER_RADIUS = 4;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** AniList descriptions are HTML — flatten to plain text for the hero blurb. */
-const stripHtml = (html: string) =>
-    html
-        .replace(/<br\s*\/?>/gi, " ")
-        .replace(/<[^>]+>/g, "")
-        .replace(/&[a-z]+;/gi, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
 export default function AnimeHero({ anime }: AnimeHeroProps) {
     const router = useRouter();
     const total = anime.length;
@@ -156,7 +147,6 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
     }
 
     const activeAnime = anime[activeIndex];
-    const description = stripHtml(activeAnime.description || "");
     const genres = activeAnime.genres?.slice(0, 4) ?? [];
 
     return (
@@ -192,7 +182,7 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                 </span>
             </div>
 
-            {/* 7-card fan carousel (poster = AniList coverImage.large) */}
+            {/* 7-card fan carousel (poster = AniList coverImage.extraLarge) */}
             <div
                 className={`anime-carousel${
                     dragging ? " is-dragging" : ""
@@ -233,6 +223,12 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                                     src={item.poster}
                                     alt=""
                                     draggable={false}
+                                    decoding="async"
+                                    fetchPriority={
+                                        index === activeIndex
+                                            ? "high"
+                                            : "auto"
+                                    }
                                     loading={
                                         Math.abs(base) <= 1
                                             ? "eager"
@@ -267,7 +263,7 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                 </button>
             </div>
 
-            {/* Metadata + logo + genres + description */}
+            {/* Metadata + logo + genres */}
             <div className="anime-hero-title">
                 <p className="anime-hero-meta">
                     {activeAnime.type && (
@@ -312,9 +308,6 @@ export default function AnimeHero({ anime }: AnimeHeroProps) {
                     </p>
                 )}
 
-                {description && (
-                    <p className="anime-hero-desc">{description}</p>
-                )}
             </div>
 
             {/* Main actions — DO NOT restyle */}

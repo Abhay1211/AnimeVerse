@@ -1,5 +1,9 @@
 "use client";
 
+import type { VideoSourceKind } from "../lib/providers/types";
+import type { VideoSubtitle } from "../lib/providers/types";
+import AnimeVerseVideoPlayer from "./AnimeVerseVideoPlayer";
+
 /**
  * PlaybackSurface — the swappable playback layer that lives inside VideoPlayer.
  *
@@ -12,19 +16,20 @@
  * Because it is cross-origin we cannot read or drive its playback, so
  * VideoPlayer renders no controls layer over it (MegaPlay draws its own).
  *
- * A later milestone adds implementation === "html5" (an <video> element, later
- * fed by HLS.js) and mounts a real controls layer as a sibling of the surface.
+ * The direct implementation is AnimeVerseVideoPlayer, kept separate from
+ * the iframe branch so cross-origin MegaPlay behavior remains unchanged.
  * The public shape below is intentionally small so that change stays local.
  */
 
-export type PlaybackImplementation = "iframe"; // later: | "html5"
+export type PlaybackImplementation = VideoSourceKind;
 
 export type PlaybackSurfaceProps = {
-    /** Which playback implementation to render. Only "iframe" is wired today. */
+    /** Which playback implementation to render. */
     implementation?: PlaybackImplementation;
 
     /** Playback URL. For "iframe" this is the cross-origin embed URL. */
     url: string;
+    isHLS?: boolean;
 
     /** Accessible title for the surface. */
     title?: string;
@@ -37,14 +42,29 @@ export type PlaybackSurfaceProps = {
 
     /** Fired once the surface has finished its initial load. */
     onReady?: () => void;
+
+    /** Poster used by the direct AnimeVerse-owned player. */
+    poster?: string | null;
+
+    /** Subtitle tracks supplied by a direct-media resolver. */
+    subtitles?: VideoSubtitle[];
+
+    /** Fullscreen state/action owned by the outer player shell. */
+    isFullscreen?: boolean;
+    onToggleFullscreen?: () => void;
 };
 
 export default function PlaybackSurface({
     implementation = "iframe",
     url,
+    isHLS = false,
     title,
     reloadToken = 0,
     onReady,
+    poster,
+    subtitles,
+    isFullscreen,
+    onToggleFullscreen,
 }: PlaybackSurfaceProps) {
     if (implementation === "iframe") {
         return (
@@ -54,9 +74,26 @@ export default function PlaybackSurface({
                 title={title ?? "Video player"}
                 className="absolute inset-0 h-full w-full border-0"
                 allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                 allowFullScreen
                 referrerPolicy="origin"
                 onLoad={onReady}
+            />
+        );
+    }
+
+    if (implementation === "direct") {
+        return (
+            <AnimeVerseVideoPlayer
+                src={url}
+                isHLS={isHLS}
+                poster={poster}
+                subtitles={subtitles}
+                title={title}
+                reloadToken={reloadToken}
+                isFullscreen={isFullscreen}
+                onReady={onReady}
+                onToggleFullscreen={onToggleFullscreen}
             />
         );
     }

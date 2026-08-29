@@ -1057,6 +1057,9 @@ ANIME VERSE LOGO
 
   display: block;
   -webkit-user-drag: none;
+  image-rendering: auto;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   position: absolute;
   inset: 0;
 
@@ -1072,7 +1075,9 @@ ANIME VERSE LOGO
 }
 
 .anime-carousel-item.active .anime-carousel-card img {
-  transform: scale(1.015);
+  /* The card transform already handles the active position. Avoid a second
+     image-scale pass so the highest-resolution source stays crisp. */
+  transform: none;
   transition: transform 0.7s ease;
 }
 
@@ -1098,7 +1103,7 @@ ANIME VERSE LOGO
 .anime-hero-title {
   position: absolute;
   left: 50%;
-  bottom: 104px;
+  bottom: 92px;
   z-index: 30;
 
   display: flex;
@@ -1160,7 +1165,7 @@ ANIME VERSE LOGO
   filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.7));
 }
 
-/* Genre row + description below the logo (AniList data). */
+/* Genre row below the logo. */
 .anime-hero-genres {
   margin: 0;
 
@@ -1170,22 +1175,6 @@ ANIME VERSE LOGO
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(217, 180, 74, 0.9);
-}
-
-.anime-hero-desc {
-  margin: 0;
-  max-width: 46ch;
-
-  font-family: "Manrope", system-ui, sans-serif;
-  font-size: 13px;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.62);
-
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
 }
 
 .anime-hero-title h1 {
@@ -2982,7 +2971,7 @@ body {
   }
 
   .anime-hero-title {
-    bottom: 96px;
+    bottom: 84px;
     width: min(360px, 88vw);
     gap: 9px;
   }
@@ -2996,12 +2985,6 @@ body {
   .anime-hero-genres {
     font-size: 9px;
     letter-spacing: 0.14em;
-  }
-
-  .anime-hero-desc {
-    font-size: 12px;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
   }
 
   .anime-hero-counter {

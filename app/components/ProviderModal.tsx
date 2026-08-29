@@ -19,32 +19,11 @@ const PROVIDERS: Provider[] = [
         icon: "server",
     },
     {
-        id: "cloudplay",
-        name: "CloudPlay",
-        description: "VidCloud / Vidwish",
-        meta: "Fast · Sub/Dub",
-        icon: "cloud",
-    },
-    {
-        id: "kiwistream",
-        name: "KiwiStream",
-        description: "Kiwi Stream",
-        meta: "Stable · Sub/Dub",
+        id: "anikoto",
+        name: "Anikoto",
+        description: "Anikoto API - Sub/Dub",
+        meta: "Provider 2 - Sub/Dub",
         icon: "layers",
-    },
-    {
-        id: "streamx",
-        name: "StreamX",
-        description: "Vidstream variants",
-        meta: "Multiple sources",
-        icon: "globe",
-    },
-    {
-        id: "nexus",
-        name: "Nexus",
-        description: "All remaining sources",
-        meta: "Fallback network",
-        icon: "grid",
     },
 ];
 

@@ -40,6 +40,7 @@ const query = `
                 averageScore
                 genres
                 coverImage {
+                    extraLarge
                     large
                 }
                 bannerImage

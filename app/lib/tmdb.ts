@@ -166,6 +166,36 @@ function normalizeTitle(title: string) {
         .trim();
 }
 
+/**
+ * AniList often gives a season-specific title while TMDB stores artwork on
+ * the franchise-level series (for example, "Bleach: Thousand-Year Blood War
+ * - The Calamity" → "Bleach"). Keep the original title first, then try the
+ * season-stripped and franchise-base variants.
+ */
+function titleVariants(title: string): string[] {
+    const withoutSeason = title
+        .replace(
+            /\s+(season|s)\s*\d+(\s*part\s*\d+)?$/i,
+            ""
+        )
+        .replace(
+            /\s+(part|cour)\s*\d+$/i,
+            ""
+        )
+        .trim();
+
+    const franchiseBase = withoutSeason
+        .split(/\s*:\s*/)[0]
+        .split(/\s+-\s+/)[0]
+        .trim();
+
+    return [title.trim(), withoutSeason, franchiseBase].filter(
+        (variant, index, variants) =>
+            variant.length > 0 &&
+            variants.indexOf(variant) === index
+    );
+}
+
 function findTvdbMatch(
     results: TvdbSearchResult[],
     title: string,
@@ -211,21 +241,12 @@ async function getTheTvdbLogo(
     try {
         const headers = await getTvdbHeaders();
 
-        const titleWithoutSeason = title
-            .replace(
-                /\s+(season|s)\s*\d+(\s*part\s*\d+)?$/i,
-                ""
-            )
-            .replace(
-                /\s+(part|cour)\s*\d+$/i,
-                ""
-            )
-            .trim();
-
-        const queries = [
-            { query: title, year },
-            { query: titleWithoutSeason, year: null },
-        ];
+        const queries = titleVariants(title).map(
+            (query, index) => ({
+                query,
+                year: index === 0 ? year : null,
+            })
+        );
 
         let show: TvdbSearchResult | null = null;
 
@@ -380,52 +401,60 @@ async function findTmdbShow(
     title: string,
     year: number | null
 ): Promise<TmdbSearchResult | null> {
-    const params = new URLSearchParams({
-        query: title,
-        include_adult: "false",
-        language: "en-US",
-        page: "1",
-    });
+    for (const [index, queryTitle] of titleVariants(title).entries()) {
+        const params = new URLSearchParams({
+            query: queryTitle,
+            include_adult: "false",
+            language: "en-US",
+            page: "1",
+        });
 
-    if (year) {
-        params.set("first_air_date_year", String(year));
-    }
-
-    const searchResponse = await fetch(
-        `${TMDB_API}/search/tv?${params}`,
-        {
-            headers: getTmdbHeaders(),
-            next: { revalidate: 86400 },
+        // Only constrain the original season title by year. The franchise
+        // title may have started years earlier than the AniList season.
+        if (year && index === 0) {
+            params.set("first_air_date_year", String(year));
         }
-    );
 
-    if (!searchResponse.ok) {
-        throw new Error("TMDB search failed");
+        const searchResponse = await fetch(
+            `${TMDB_API}/search/tv?${params}`,
+            {
+                headers: getTmdbHeaders(),
+                next: { revalidate: 86400 },
+            }
+        );
+
+        if (!searchResponse.ok) {
+            if (index === 0) continue;
+            throw new Error("TMDB search failed");
+        }
+
+        const searchData: TmdbSearchResponse =
+            await searchResponse.json();
+        const normalizedTitle = normalizeTitle(queryTitle);
+
+        const exactTitleMatch = searchData.results.find((result) => {
+            const names = [
+                result.name,
+                result.original_name,
+            ].filter(Boolean) as string[];
+
+            return names.some(
+                (name) => normalizeTitle(name) === normalizedTitle
+            );
+        });
+
+        if (exactTitleMatch) return exactTitleMatch;
+
+        if (year && index === 0) {
+            const yearMatch = searchData.results.find((result) =>
+                result.first_air_date?.startsWith(String(year))
+            );
+
+            if (yearMatch) return yearMatch;
+        }
     }
 
-    const searchData: TmdbSearchResponse =
-        await searchResponse.json();
-
-    const normalizedTitle = normalizeTitle(title);
-
-    const exactTitleMatch = searchData.results.find((result) => {
-        const names = [
-            result.name,
-            result.original_name,
-        ].filter(Boolean) as string[];
-
-        return names.some(
-            (name) => normalizeTitle(name) === normalizedTitle
-        );
-    });
-
-    const yearMatch = year
-        ? searchData.results.find((result) =>
-              result.first_air_date?.startsWith(String(year))
-          )
-        : null;
-
-    return exactTitleMatch ?? yearMatch ?? null;
+    return null;
 }
 
 async function fetchTmdbArtwork(

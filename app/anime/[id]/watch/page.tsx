@@ -17,15 +17,9 @@ import {
     watchPill,
     watchSectionHeading,
 } from "../../../components/watchUi";
+import type { VideoSource } from "../../../lib/providers/types";
 
 type AudioType = "sub" | "dub";
-
-type VideoSource = {
-    provider: string;
-    type: AudioType;
-    url: string;
-    quality?: string;
-};
 
 type WatchProvider = {
     id: string;
@@ -454,8 +448,11 @@ export default function WatchPage() {
                     <div className="min-w-0">
                         <VideoPlayer
                             src={source?.url ?? null}
+                            sourceKind={source?.kind ?? "iframe"}
+                            isHLS={source?.isHLS}
                             language={type}
                             poster={posterForPlayer}
+                            subtitles={source?.subtitles}
                             title={
                                 isMovie
                                     ? anime?.title

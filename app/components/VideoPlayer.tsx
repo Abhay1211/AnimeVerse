@@ -8,15 +8,18 @@ import {
     useState,
 } from "react";
 import PlaybackSurface from "./PlaybackSurface";
+import type {
+    VideoSourceKind,
+    VideoSubtitle,
+} from "../lib/providers/types";
 
 /**
  * VideoPlayer — the framed player boundary on the watch page.
  *
  *   VideoPlayer
  *     ├── playback surface   → <PlaybackSurface> (swappable; iframe today)
- *     └── controls layer     → none yet: the MegaPlay iframe is cross-origin
- *                              and draws its own controls. A future <video>
- *                              surface will mount real controls here.
+ *     └── controls layer     → owned by AnimeVerseVideoPlayer for direct media;
+ *                              MegaPlay continues drawing controls in its iframe.
  *
  * What this component owns and will keep owning across a playback swap:
  *   - the 16:9 framed container (radius / border / black bg)
@@ -62,6 +65,10 @@ type VideoPlayerProps = {
      */
     src?: string | null;
 
+    /** How the resolved source should be mounted by PlaybackSurface. */
+    sourceKind?: VideoSourceKind;
+    isHLS?: boolean;
+
     /**
      * Alternative to `src`: a MegaPlay episode embed id. Combined with
      * `language` it is turned into an `s-2` embed URL internally.
@@ -73,6 +80,9 @@ type VideoPlayerProps = {
 
     /** Poster shown behind the play gate, before the embed is loaded. */
     poster?: string | null;
+
+    /** Resolver-provided WebVTT-compatible subtitle tracks. */
+    subtitles?: VideoSubtitle[];
 
     /** Short label announced on the play button, e.g. "Episode 5". */
     title?: string;
@@ -177,9 +187,12 @@ function Spinner({ className }: { className?: string }) {
 
 export default function VideoPlayer({
     src,
+    sourceKind = "iframe",
+    isHLS = false,
     embedId,
     language = "sub",
     poster,
+    subtitles,
     title,
     loading = false,
     error = null,
@@ -315,15 +328,20 @@ export default function VideoPlayer({
             {/* Playback surface (swappable) */}
             {started && (
                 <PlaybackSurface
-                    implementation="iframe"
+                    implementation={sourceKind}
                     url={embedUrl}
+                    isHLS={isHLS}
                     title={title}
                     reloadToken={reloadToken}
+                    poster={poster}
+                    subtitles={subtitles}
+                    isFullscreen={isFullscreen}
+                    onToggleFullscreen={toggleFullscreen}
                     onReady={() => setFrameLoaded(true)}
                 />
             )}
 
-            {/* Controls layer: intentionally empty for the iframe surface. */}
+            {/* Direct sources own their controls; MegaPlay continues to render its controls in the iframe. */}
 
             {/* Buffering veil while the surface boots */}
             {started && !frameLoaded && (
@@ -368,11 +386,13 @@ export default function VideoPlayer({
             <div
                 className={`absolute right-3 top-3 flex items-center gap-1.5 transition ${
                     started
-                        ? "opacity-0 group-hover:opacity-100"
+                        ? sourceKind === "iframe"
+                            ? "opacity-0 group-hover:opacity-100"
+                            : "pointer-events-none opacity-0"
                         : "opacity-100"
                 }`}
             >
-                {started && (
+                {started && sourceKind === "iframe" && (
                     <button
                         type="button"
                         onClick={reloadSurface}

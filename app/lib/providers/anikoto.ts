@@ -206,6 +206,7 @@ const megaplayProvider: Provider = {
                     provider: "megaplay",
                     type,
                     url: aniUrl,
+                    kind: "iframe",
                 },
             ];
         }
@@ -227,6 +228,7 @@ const megaplayProvider: Provider = {
                         provider: "megaplay",
                         type,
                         url: malUrl,
+                        kind: "iframe",
                     },
                 ];
             }
