@@ -19,7 +19,7 @@ const HERO_COUNT = 15;
 
 const query = `
     query {
-        topAiring: Page(page: 1, perPage: 20) {
+        topAiring: Page(page: 1, perPage: 50) {
             media(
                 type: ANIME
                 sort: POPULARITY_DESC
@@ -50,7 +50,7 @@ const query = `
             }
         }
 
-        mostPopular: Page(page: 1, perPage: 20) {
+        mostPopular: Page(page: 1, perPage: 50) {
             media(
                 type: ANIME
                 sort: POPULARITY_DESC
@@ -79,7 +79,7 @@ const query = `
             }
         }
 
-        mostFavorite: Page(page: 1, perPage: 20) {
+        mostFavorite: Page(page: 1, perPage: 50) {
             media(
                 type: ANIME
                 sort: FAVOURITES_DESC

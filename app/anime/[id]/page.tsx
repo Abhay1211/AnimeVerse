@@ -1,16 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AnimeNavbar from "../../components/AnimeNavbar";
-import ProviderModal from "../../components/ProviderModal";
+import ProviderModal, { PROVIDERS } from "../../components/ProviderModal";
 
 import {
     buildWatchStructure,
     formatScore,
     type Anime,
 } from "../../data/anime";
+
+const EPISODE_PAGE_SIZE = 9;
 
 /** Toggle an anime id inside a localStorage-backed list. Returns the new "on" state. */
 function toggleStoredId(key: string, id: string): boolean {
@@ -99,6 +102,19 @@ export default function AnimeDetailPage() {
     const [favorite, setFavorite] = useState(false);
     const [planned, setPlanned] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<
+        "overview" | "episodes" | "more"
+    >("overview");
+    const [visibleEpisodeCount, setVisibleEpisodeCount] =
+        useState(EPISODE_PAGE_SIZE);
+    const [selectedEpisode, setSelectedEpisode] = useState(1);
+    const [tmdbEpisodes, setTmdbEpisodes] = useState<{
+        animeId: string;
+        /** TMDB metadata keyed by ABSOLUTE (franchise-wide) episode number. */
+        map: Map<number, { title: string | null; thumbnail: string | null }>;
+        /** Highest absolute episode number TMDB returned for the franchise. */
+        total: number;
+    } | null>(null);
 
     const showToast = useCallback((message: string) => {
         setToast(message);
@@ -115,6 +131,169 @@ export default function AnimeDetailPage() {
             Math.max(1, buildWatchStructure(anime).seasons.length)
         );
     }, [anime]);
+
+    const watchStructure = useMemo(
+        () => (anime ? buildWatchStructure(anime) : null),
+        [anime]
+    );
+
+    // Per-episode stills / titles come from the same TMDB endpoint the watch
+    // page uses. Fetch for any episodic entry that has a title (movies have
+    // no episode list); the season → absolute-number mapping is handled in
+    // `detailEpisodes` below.
+    const canFetchEpisodes =
+        !!anime?.title &&
+        watchStructure != null &&
+        !watchStructure.currentIsMovie;
+
+    useEffect(() => {
+        if (!id || !canFetchEpisodes || !anime?.title) return;
+
+        let cancelled = false;
+        const query = new URLSearchParams({ title: anime.title });
+        if (anime.year) query.set("year", String(anime.year));
+
+        fetch(
+            `/api/anime/${encodeURIComponent(id)}/episodes?${query.toString()}`
+        )
+            .then((response) => (response.ok ? response.json() : null))
+            .then(
+                (
+                    data: {
+                        episodes?: {
+                            number: number;
+                            title: string | null;
+                            thumbnail: string | null;
+                        }[];
+                    } | null
+                ) => {
+                    if (cancelled || !data?.episodes) return;
+
+                    const map = new Map<
+                        number,
+                        { title: string | null; thumbnail: string | null }
+                    >();
+                    let total = 0;
+
+                    for (const entry of data.episodes) {
+                        total = Math.max(total, entry.number);
+                        if (!map.has(entry.number)) {
+                            map.set(entry.number, {
+                                title: entry.title,
+                                thumbnail: entry.thumbnail,
+                            });
+                        }
+                    }
+
+                    setTmdbEpisodes({ animeId: id, map, total });
+                }
+            )
+            .catch(() => {
+                /* non-critical — falls back to AniList data / artwork */
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id, anime?.title, anime?.year, canFetchEpisodes]);
+
+    const detailEpisodes = useMemo(() => {
+        if (!anime || !watchStructure || watchStructure.currentIsMovie) {
+            return [];
+        }
+
+        // This entry's own episode list: 1..N local numbers, sized the same
+        // way the watch page sizes it. Watch links use these local numbers.
+        const localCount = watchStructure.episodeCount;
+
+        const metadata = new Map(
+            anime.streamingEpisodes.map((episode) => [
+                episode.number,
+                episode,
+            ])
+        );
+        const tmdb =
+            tmdbEpisodes?.animeId === anime.id ? tmdbEpisodes : null;
+
+        // AniList `streamingEpisodes` and TMDB both number episodes ABSOLUTELY
+        // across the whole franchise, while this page shows one season's local
+        // 1..N. Work out how many franchise episodes precede this season so the
+        // two line up — but only when we can pin it with confidence, so a card
+        // never shows another season's title.
+        const seasons = watchStructure.seasons;
+        let absoluteOffset: number | null = tmdb ? 0 : null;
+
+        if (tmdb && seasons.length > 1) {
+            const currentIndex = Math.max(
+                0,
+                seasons.findIndex((season) => season.isCurrent)
+            );
+            const sumEps = (list: typeof seasons) =>
+                list.reduce(
+                    (sum, season) => sum + (season.episodeCount ?? 0),
+                    0
+                );
+            const before = sumEps(seasons.slice(0, currentIndex));
+            const after = sumEps(seasons.slice(currentIndex + 1));
+
+            if (
+                currentIndex === 0 &&
+                watchStructure.currentSeasonNumber <= 1
+            ) {
+                absoluteOffset = 0; // genuine first season
+            } else if (before + localCount + after === tmdb.total) {
+                absoluteOffset = before; // chain covers every season → exact
+            } else if (
+                after === 0 &&
+                tmdb.total - localCount >= before
+            ) {
+                absoluteOffset = tmdb.total - localCount; // newest season = tail
+            } else {
+                absoluteOffset = null; // can't place it — skip TMDB
+            }
+        } else if (
+            tmdb &&
+            seasons.length <= 1 &&
+            watchStructure.currentSeasonNumber > 1
+        ) {
+            // Titled as a later season but AniList gave us no prequel chain.
+            absoluteOffset = null;
+        }
+
+        return Array.from({ length: localCount }, (_, index) => {
+            const number = index + 1;
+            const key = number + (absoluteOffset ?? 0);
+            const entry = metadata.get(key);
+            const still =
+                absoluteOffset != null ? tmdb?.map.get(key) : undefined;
+            const stillTitle =
+                still?.title &&
+                !/^episode\s+\d+$/i.test(still.title.trim())
+                    ? still.title
+                    : null;
+
+            return {
+                number,
+                // Real title only: AniList streaming listing, then TMDB, else
+                // null → the card shows "Episode N".
+                title: entry?.title ?? stillTitle ?? null,
+                // Episode-specific still first, then the AniList thumbnail,
+                // then the anime artwork so the card never breaks.
+                thumbnail:
+                    still?.thumbnail ||
+                    entry?.thumbnail ||
+                    anime.banner ||
+                    anime.poster,
+            };
+        });
+    }, [anime, watchStructure, tmdbEpisodes]);
+
+    const episodeTotal = detailEpisodes.length;
+    const visibleEpisodes = detailEpisodes.slice(0, visibleEpisodeCount);
+    const canLoadMoreEpisodes = visibleEpisodeCount < episodeTotal;
+    const canShowLessEpisodes =
+        visibleEpisodeCount > EPISODE_PAGE_SIZE &&
+        visibleEpisodes.length > EPISODE_PAGE_SIZE;
 
     // Restore favourite / plan-to-watch state from localStorage for this anime.
     useEffect(() => {
@@ -218,7 +397,7 @@ export default function AnimeDetailPage() {
         if (!anime) return;
 
         router.push(
-            `/anime/${anime.id}/watch?episode=1&type=sub&provider=${encodeURIComponent(
+            `/anime/${anime.id}/watch?episode=${selectedEpisode}&type=sub&provider=${encodeURIComponent(
                 selectedProvider
             )}`
         );
@@ -255,6 +434,69 @@ export default function AnimeDetailPage() {
             </>
         );
     }
+
+    // Related-anime UI shared by the Overview layout and the "More Like
+    // This" tab, so both render exactly the same markup.
+    const recommendationsList = (
+        <div className="anime-recommendation-list">
+            {anime.recommendations.slice(0, 3).map((item) => (
+                <Link
+                    key={item.id}
+                    href={`/anime/${item.id}`}
+                    className="anime-recommendation"
+                >
+                    <img src={item.poster} alt={item.title} />
+
+                    <div className="anime-recommendation-info">
+                        <strong>{item.title}</strong>
+                    </div>
+
+                    {item.type && <span>{item.type}</span>}
+                </Link>
+            ))}
+        </div>
+    );
+
+    const relatedMediaSection = anime.relatedMedia.length > 0 && (
+        <div className="anime-detail-related-media">
+            <div className="anime-detail-section-heading">
+                <span>RELATIONS</span>
+                <h3>Related Media</h3>
+            </div>
+
+            <div className="anime-related-media-grid">
+                {anime.relatedMedia.slice(0, 6).map((item) => (
+                    <Link
+                        key={`${item.id}-${item.relationType}`}
+                        href={`/anime/${item.id}`}
+                        className="anime-related-media-card"
+                    >
+                        <img src={item.poster} alt={item.title} />
+
+                        <div className="anime-related-media-info">
+                            <span className="anime-related-media-relation">
+                                {formatRelationType(item.relationType)}
+                            </span>
+
+                            <strong>{item.title}</strong>
+
+                            <div className="anime-related-media-meta">
+                                <span>{item.type}</span>
+
+                                {item.episodes && (
+                                    <span>EP {item.episodes}</span>
+                                )}
+
+                                {item.duration && (
+                                    <span>{item.duration}</span>
+                                )}
+                            </div>
+                        </div>
+                    </Link>
+                ))}
+            </div>
+        </div>
+    );
 
     return (
         <>
@@ -368,9 +610,10 @@ export default function AnimeDetailPage() {
                                     <button
                                         type="button"
                                         className="anime-detail-watch"
-                                        onClick={() =>
-                                            setShowProviderModal(true)
-                                        }
+                                        onClick={() => {
+                                            setSelectedEpisode(1);
+                                            setShowProviderModal(true);
+                                        }}
                                     >
                                         <svg
                                             xmlns="http://www.w3.org/2000/svg"
@@ -531,19 +774,199 @@ export default function AnimeDetailPage() {
                         </p>
 
                         <div className="anime-detail-tabs">
-                            <button className="active">
+                            <button
+                                className={
+                                    activeTab === "overview"
+                                        ? "active"
+                                        : ""
+                                }
+                                onClick={() => setActiveTab("overview")}
+                            >
                                 Overview
                             </button>
 
-                            <button>
+                            <button
+                                className={
+                                    activeTab === "episodes"
+                                        ? "active"
+                                        : ""
+                                }
+                                onClick={() => setActiveTab("episodes")}
+                            >
                                 Episodes
                             </button>
 
-                            <button>
+                            <button
+                                className={
+                                    activeTab === "more" ? "active" : ""
+                                }
+                                onClick={() => setActiveTab("more")}
+                            >
                                 More Like This
                             </button>
                         </div>
 
+                        {activeTab === "episodes" && (
+                            <div className="mt-6 pb-28">
+                                {detailEpisodes.length === 0 ? (
+                                    <p className="py-12 text-center font-mono text-[13px] text-white/40">
+                                        No episodes available yet.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                            {visibleEpisodes.map((episode) => {
+                                                const heading = episode.title
+                                                    ? `Episode ${episode.number} - ${episode.title}`
+                                                    : `Episode ${episode.number}`;
+
+                                                return (
+                                                    <button
+                                                        key={episode.number}
+                                                        type="button"
+                                                        title={heading}
+                                                        className="latest-episode-card w-full cursor-pointer appearance-none p-0 text-left"
+                                                        onClick={() => {
+                                                            setSelectedEpisode(
+                                                                episode.number
+                                                            );
+                                                            setShowProviderModal(
+                                                                true
+                                                            );
+                                                        }}
+                                                    >
+                                                        {episode.thumbnail && (
+                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                            <img
+                                                                className="latest-episode-card-bg"
+                                                                src={
+                                                                    episode.thumbnail
+                                                                }
+                                                                alt=""
+                                                                loading="lazy"
+                                                                draggable={false}
+                                                            />
+                                                        )}
+
+                                                        <div className="latest-episode-card-shade" />
+
+                                                        <div className="latest-episode-card-body">
+                                                            <p className="latest-episode-card-title">
+                                                                <span>
+                                                                    {heading}
+                                                                </span>
+                                                                <ChevronRight
+                                                                    size={14}
+                                                                    aria-hidden="true"
+                                                                />
+                                                            </p>
+
+                                                            <p className="latest-episode-card-sub">
+                                                                Episode{" "}
+                                                                {episode.number}
+                                                                <span> · </span>
+                                                                English Sub
+                                                            </p>
+
+                                                            {episode.title && (
+                                                                <p className="latest-episode-card-native">
+                                                                    {episode.title}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="latest-episode-card-pills">
+                                                            <span className="latest-episode-pill">
+                                                                {PROVIDERS.length}{" "}
+                                                                {PROVIDERS.length === 1
+                                                                    ? "Provider"
+                                                                    : "Providers"}
+                                                            </span>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {(canLoadMoreEpisodes ||
+                                            canShowLessEpisodes) && (
+                                            <div className="mt-4 flex justify-center gap-3">
+                                                {canLoadMoreEpisodes && (
+                                                    <button
+                                                        type="button"
+                                                        className="latest-episodes-toggle"
+                                                        onClick={() =>
+                                                            setVisibleEpisodeCount(
+                                                                (current) =>
+                                                                    Math.min(
+                                                                        current +
+                                                                            EPISODE_PAGE_SIZE,
+                                                                        episodeTotal
+                                                                    )
+                                                            )
+                                                        }
+                                                    >
+                                                        <ChevronDown
+                                                            size={13}
+                                                            aria-hidden="true"
+                                                        />
+                                                        LOAD MORE
+                                                    </button>
+                                                )}
+
+                                                {canShowLessEpisodes && (
+                                                    <button
+                                                        type="button"
+                                                        className="latest-episodes-toggle"
+                                                        onClick={() =>
+                                                            setVisibleEpisodeCount(
+                                                                (current) =>
+                                                                    Math.max(
+                                                                        current -
+                                                                            EPISODE_PAGE_SIZE,
+                                                                        EPISODE_PAGE_SIZE
+                                                                    )
+                                                            )
+                                                        }
+                                                    >
+                                                        <ChevronUp
+                                                            size={13}
+                                                            aria-hidden="true"
+                                                        />
+                                                        SHOW LESS
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === "more" && (
+                            <div className="anime-detail-body mt-6 pb-28">
+                                {anime.recommendations.length > 0 ||
+                                relatedMediaSection ? (
+                                    <>
+                                        {anime.recommendations.length > 0 && (
+                                            <div className="anime-detail-recommendations">
+                                                <h3>More Like This</h3>
+                                                {recommendationsList}
+                                            </div>
+                                        )}
+
+                                        {relatedMediaSection}
+                                    </>
+                                ) : (
+                                    <p className="py-12 text-center font-mono text-[13px] text-white/40">
+                                        Nothing related to show yet.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === "overview" && (
+                            <>
                         <div className="anime-detail-body">
                             <div className="anime-detail-genre-pills">
                                 {anime.genres.map((genre) => (
@@ -574,98 +997,12 @@ export default function AnimeDetailPage() {
                                 <div className="anime-detail-recommendations">
                                     <h3>More Like This</h3>
 
-                                    <div className="anime-recommendation-list">
-                                        {anime.recommendations
-                                            .slice(0, 3)
-                                            .map((item) => (
-                                                <Link
-                                                    key={item.id}
-                                                    href={`/anime/${item.id}`}
-                                                    className="anime-recommendation"
-                                                >
-                                                    <img
-                                                        src={item.poster}
-                                                        alt={item.title}
-                                                    />
-
-                                                    <div className="anime-recommendation-info">
-                                                        <strong>
-                                                            {item.title}
-                                                        </strong>
-                                                    </div>
-
-                                                    {item.type && (
-                                                        <span>
-                                                            {item.type}
-                                                        </span>
-                                                    )}
-                                                </Link>
-                                            ))}
-                                    </div>
+                                    {recommendationsList}
                                 </div>
                             </div>
                         </div>
 
-                        {anime.relatedMedia.length > 0 && (
-                            <div className="anime-detail-related-media">
-                                <div className="anime-detail-section-heading">
-                                    <span>RELATIONS</span>
-                                    <h3>Related Media</h3>
-                                </div>
-
-                                <div className="anime-related-media-grid">
-                                    {anime.relatedMedia
-                                        .slice(0, 6)
-                                        .map((item) => (
-                                            <Link
-                                                key={`${item.id}-${item.relationType}`}
-                                                href={`/anime/${item.id}`}
-                                                className="anime-related-media-card"
-                                            >
-                                                <img
-                                                    src={item.poster}
-                                                    alt={item.title}
-                                                />
-
-                                                <div className="anime-related-media-info">
-                                                    <span className="anime-related-media-relation">
-                                                        {formatRelationType(
-                                                            item.relationType
-                                                        )}
-                                                    </span>
-
-                                                    <strong>
-                                                        {item.title}
-                                                    </strong>
-
-                                                    <div className="anime-related-media-meta">
-                                                        <span>
-                                                            {item.type}
-                                                        </span>
-
-                                                        {item.episodes && (
-                                                            <span>
-                                                                EP{" "}
-                                                                {
-                                                                    item.episodes
-                                                                }
-                                                            </span>
-                                                        )}
-
-                                                        {item.duration && (
-                                                            <span>
-                                                                {
-                                                                    item.duration
-                                                                }
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        ))}
-                                </div>
-                            </div>
-                        )}
+                        {relatedMediaSection}
 
                         <div className="anime-detail-stats-section">
                             <div className="anime-detail-stats">
@@ -819,6 +1156,8 @@ export default function AnimeDetailPage() {
 
                             </div>
                         </div>
+                            </>
+                        )}
 
                     </section>
                 </div>

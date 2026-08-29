@@ -10,7 +10,7 @@ type Provider = {
     icon: "server" | "cloud" | "layers" | "globe" | "grid";
 };
 
-const PROVIDERS: Provider[] = [
+export const PROVIDERS: Provider[] = [
     {
         id: "megaplay",
         name: "MegaPlay",

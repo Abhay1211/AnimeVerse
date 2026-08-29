@@ -54,7 +54,7 @@ export default function AnimeRow({
                 </button>
 
                 <div className="row-scroller" ref={scrollerRef}>
-                    {anime.map((item) => (
+                    {anime.slice(0, 20).map((item) => (
                         <AnimeCard
                             key={`${title}-${item.id}`}
                             id={item.id}

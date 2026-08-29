@@ -176,8 +176,7 @@ export default function EpisodeRail({
 
     const sectionHeading = `mb-3 ${watchSectionHeading}`;
 
-    const scrollArea =
-        "overflow-y-auto scroll-smooth pr-1 [scrollbar-color:rgba(255,255,255,0.18)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-white/[0.03] [&::-webkit-scrollbar]:w-1.5";
+    const scrollArea = "overflow-y-auto scroll-smooth pr-1";
 
     return (
         <div className="space-y-4">

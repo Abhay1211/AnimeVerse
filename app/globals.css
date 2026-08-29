@@ -22,6 +22,38 @@ body {
   background: #000;
 }
 
+/* Keep native scrollbars subtle and consistent across every scrollable area. */
+html,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #343434 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #080808;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #343434;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #464646;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: #080808;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
@@ -4777,6 +4809,10 @@ body {
   padding: 0 34px 80px;
 }
 
+.anime-catalog > .latest-episodes {
+  margin-top: 8px;
+}
+
 .anime-catalog .anime-row {
   margin-bottom: 48px;
 }
@@ -5725,7 +5761,7 @@ body {
   z-index: 3;
   margin: 0;
   width: 100%;
-  padding: 60px 34px 90px;
+  padding: 12px 34px 90px;
   background: #050505;
 }
 
@@ -6847,16 +6883,6 @@ CARD-SKELETON
   padding: 0;
   overflow-y: auto;
   max-height: 340px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-}
-
-.anime-search-results::-webkit-scrollbar {
-  width: 6px;
-}
-
-.anime-search-results::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.18);
 }
 
 .anime-search-result {
@@ -7372,18 +7398,6 @@ CARD-SKELETON
 
   display: flex;
   flex-direction: column;
-
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-}
-
-.genre-filter-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.genre-filter-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
 }
 
 .genre-filter-option {
@@ -7718,6 +7732,10 @@ CARD-SKELETON
 
 .latest-episodes .row-heading {
   margin-bottom: 12px;
+}
+
+.top-ten-actions {
+  gap: 12px;
 }
 
 .latest-episodes-scroller {

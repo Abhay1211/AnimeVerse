@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import type { Anime } from "../data/anime";
-import { Flame, CalendarDays, Clock3 } from "lucide-react";
+import {
+    Flame,
+    CalendarDays,
+    Clock3,
+    ChevronDown,
+    ChevronUp,
+} from "lucide-react";
+
+const INITIAL_VISIBLE = 9;
+const PAGE_SIZE = 9;
+const TOP_LIMIT = 50;
 
 type Period = "day" | "week" | "month";
 
@@ -18,6 +28,7 @@ export default function TopTen({
     month,
 }: TopTenProps) {
     const [period, setPeriod] = useState<Period>("day");
+    const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
 
     const rankings = {
         day,
@@ -25,7 +36,16 @@ export default function TopTen({
         month,
     };
 
-    const anime = rankings[period].slice(0, 10);
+    const totalAnime = Math.min(rankings[period].length, TOP_LIMIT);
+    const anime = rankings[period].slice(
+        0,
+        Math.min(visibleCount, totalAnime)
+    );
+
+    const selectPeriod = (nextPeriod: Period) => {
+        setPeriod(nextPeriod);
+        setVisibleCount(INITIAL_VISIBLE);
+    };
 
     return (
         <section className="top-ten-section">
@@ -38,7 +58,7 @@ export default function TopTen({
                 <div className="top-ten-header">
                     <div className="top-ten-heading">
                         <span className="top-ten-label">///</span>
-                        <h2>TOP 10</h2>
+                        <h2>TOP 50</h2>
                     </div>
 
                     <div className="top-ten-tabs-wrapper">
@@ -46,7 +66,7 @@ export default function TopTen({
                             <button
                                 type="button"
                                 className={period === "day" ? "active" : ""}
-                                onClick={() => setPeriod("day")}
+                                onClick={() => selectPeriod("day")}
                             >
                                 <Flame size={11} strokeWidth={2} />
                                 DAY
@@ -55,7 +75,7 @@ export default function TopTen({
                             <button
                                 type="button"
                                 className={period === "week" ? "active" : ""}
-                                onClick={() => setPeriod("week")}
+                                onClick={() => selectPeriod("week")}
                             >
                                 <CalendarDays size={11} strokeWidth={2} />
                                 WEEK
@@ -64,7 +84,7 @@ export default function TopTen({
                             <button
                                 type="button"
                                 className={period === "month" ? "active" : ""}
-                                onClick={() => setPeriod("month")}
+                                onClick={() => selectPeriod("month")}
                             >
                                 <Clock3 size={11} strokeWidth={2} />
                                 MONTH
@@ -125,6 +145,53 @@ export default function TopTen({
                         );
                     })}
                 </div>
+
+                {(visibleCount > INITIAL_VISIBLE ||
+                    visibleCount < totalAnime) && (
+                    <div className="latest-episodes-more top-ten-actions">
+                        {visibleCount < totalAnime && (
+                            <button
+                                type="button"
+                                className="latest-episodes-toggle"
+                                onClick={() =>
+                                    setVisibleCount((current) =>
+                                        Math.min(
+                                            current + PAGE_SIZE,
+                                            totalAnime
+                                        )
+                                    )
+                                }
+                            >
+                                <ChevronDown
+                                    size={13}
+                                    aria-hidden="true"
+                                />
+                                LOAD MORE
+                            </button>
+                        )}
+
+                        {visibleCount > INITIAL_VISIBLE && (
+                            <button
+                                type="button"
+                                className="latest-episodes-toggle"
+                                onClick={() =>
+                                    setVisibleCount((current) =>
+                                        Math.max(
+                                            current - PAGE_SIZE,
+                                            INITIAL_VISIBLE
+                                        )
+                                    )
+                                }
+                            >
+                                <ChevronUp
+                                    size={13}
+                                    aria-hidden="true"
+                                />
+                                SHOW LESS
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         </section>
     );
