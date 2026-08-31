@@ -12,6 +12,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import AnimeVerseLogo from "./AnimeVerseLogo";
 
@@ -29,6 +30,7 @@ const creator = {
   icon: "/images/sayonarc.jpg",
 };
 export default function Home() {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const mutedRef = useRef(false);
   const [activeFeature, setActiveFeature] = useState(0);
@@ -208,11 +210,18 @@ export default function Home() {
     }
   };
 
-  const scrollToMainContent = () => {
-    document.getElementById("main-content")?.scrollIntoView({
+  const smoothScrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
+  };
+
+  const handleExploreClick = (
+    event: React.MouseEvent<HTMLAnchorElement>
+  ) => {
+    event.preventDefault();
+    smoothScrollTo("explore");
   };
 
   const sceneNumber = String(scene + 1).padStart(2, "0");
@@ -265,19 +274,6 @@ export default function Home() {
               <strong>ANIME</strong> VERSE
             </div>
           </Link>
-
-          <button className="discord-button">
-            <svg
-              width="17"
-              height="17"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path d="M19.54 5.35A16.9 16.9 0 0 0 15.43 4l-.5 1.02a15.3 15.3 0 0 0-5.86 0L8.57 4a16.9 16.9 0 0 0-4.11 1.35C1.86 9.23 1.15 13.02 1.5 16.76a16.9 16.9 0 0 0 5.05 2.56l1.22-1.66c-.67-.25-1.31-.56-1.92-.92l.47-.36c3.71 1.73 8.17 1.73 11.84 0l.48.36c-.61.36-1.25.67-1.92.92l1.22 1.66a16.9 16.9 0 0 0 5.05-2.56c.41-4.34-.7-8.1-3.45-11.41ZM8.5 14.7c-1.1 0-2-.99-2-2.2s.88-2.2 2-2.2 2 .99 2 2.2-.9 2.2-2 2.2Zm7 0c-1.1 0-2-.99-2-2.2s.88-2.2 2-2.2 2 .99 2 2.2-.9 2.2-2 2.2Z" />
-            </svg>
-            <span>Join Discord</span>
-          </button>
         </header>
 
         {/* =========================
@@ -303,16 +299,6 @@ export default function Home() {
             <span>
               {muted ? "Enable Sound" : "Mute Sound"}
             </span>
-          </div>
-
-          <div className="side-control">
-            <button
-              className="side-button"
-              aria-label="Information"
-            >
-              <Info size={20} />
-            </button>
-            <span>About</span>
           </div>
 
           <div className="side-control">
@@ -342,12 +328,19 @@ export default function Home() {
           </p>
 
           <div className="hero-actions">
-            <a href="/explore" className="primary-button">
+            <a
+              href="#explore"
+              className="primary-button"
+              onClick={handleExploreClick}
+            >
               Explore
               <ArrowRight size={18} />
             </a>
 
-            <button className="secondary-button">
+            <button
+              className="secondary-button"
+              onClick={() => router.push("/search")}
+            >
               <Search size={18} />
               Search
             </button>
@@ -476,7 +469,7 @@ export default function Home() {
 
         <button
           className="scroll-indicator"
-          onClick={scrollToMainContent}
+          onClick={() => smoothScrollTo("main-content")}
           aria-label="Scroll to main content"
         >
           <img
@@ -752,7 +745,7 @@ export default function Home() {
           NEXT SECTION / CTA
       ========================= */}
 
-      <section className="cta-section">
+      <section id="explore" className="cta-section">
         <div className="cta-content">
           <span className="cta-eyebrow">START YOUR JOURNEY</span>
 
@@ -767,12 +760,19 @@ export default function Home() {
           </p>
 
           <div className="cta-actions">
-            <a href="/explore" className="cta-primary">
+            <a
+              href="#explore"
+              className="cta-primary"
+              onClick={handleExploreClick}
+            >
               Explore
               <ArrowRight size={18} />
             </a>
 
-            <button className="cta-secondary">
+            <button
+              className="cta-secondary"
+              onClick={() => router.push("/search")}
+            >
               <Search size={18} />
               Find Something
             </button>
