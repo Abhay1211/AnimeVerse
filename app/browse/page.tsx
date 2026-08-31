@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw, Search } from "lucide-react";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -67,7 +67,8 @@ function BrowseContent() {
     const status = searchParams.get("status") ?? "";
     const season = searchParams.get("season") ?? "";
     const seasonYear = searchParams.get("seasonYear") ?? "";
-    const requestKey = `${page}|${selectedGenres.join(",")}|${format}|${status}|${season}|${seasonYear}`;
+    const urlSearch = searchParams.get("search") ?? "";
+    const requestKey = `${page}|${selectedGenres.join(",")}|${format}|${status}|${season}|${seasonYear}|${urlSearch}`;
 
     const [state, setState] = useState<BrowseState>(EMPTY_STATE);
     const [trackedRequestKey, setTrackedRequestKey] = useState(requestKey);
@@ -76,6 +77,33 @@ function BrowseContent() {
         setTrackedRequestKey(requestKey);
         setState((previous) => ({ ...previous, loading: true, error: false }));
     }
+
+    // Free-text search. Debounced into the `?search=` param so it composes with
+    // the existing filters — `/api/anime/browse` already accepts `search`
+    // alongside genre/format/status/season/year.
+    const [searchInput, setSearchInput] = useState(urlSearch);
+    const [seenUrlSearch, setSeenUrlSearch] = useState(urlSearch);
+    if (urlSearch !== seenUrlSearch) {
+        // URL changed from outside our debounce (back/forward, Clear) — reseed.
+        setSeenUrlSearch(urlSearch);
+        setSearchInput(urlSearch);
+    }
+
+    useEffect(() => {
+        const trimmed = searchInput.trim();
+        if (trimmed === urlSearch) return;
+
+        const id = window.setTimeout(() => {
+            setSeenUrlSearch(trimmed);
+            const next = new URLSearchParams(searchParams.toString());
+            if (trimmed) next.set("search", trimmed);
+            else next.delete("search");
+            next.delete("page");
+            router.replace(`${pathname}?${next.toString()}`);
+        }, 280);
+
+        return () => window.clearTimeout(id);
+    }, [searchInput, urlSearch, searchParams, pathname, router]);
 
     useEffect(() => {
         let cancelled = false;
@@ -89,6 +117,7 @@ function BrowseContent() {
         if (status) params.set("status", status);
         if (season) params.set("season", season);
         if (seasonYear) params.set("seasonYear", seasonYear);
+        if (urlSearch) params.set("search", urlSearch);
 
         fetch(`/api/anime/browse?${params.toString()}`)
             .then(async (response) => {
@@ -120,7 +149,7 @@ function BrowseContent() {
         return () => {
             cancelled = true;
         };
-    }, [format, page, requestKey, season, seasonYear, selectedGenres, status]);
+    }, [format, page, requestKey, season, seasonYear, selectedGenres, status, urlSearch]);
 
     const updateParams = (updates: Record<string, string | null>) => {
         const next = new URLSearchParams(searchParams.toString());
@@ -141,6 +170,19 @@ function BrowseContent() {
 
     const hasFilters = selectedGenres.length > 0 || Boolean(format || status || season || seasonYear);
 
+    // Active dropdown filters shown as removable chips outside the filter row.
+    const activeChips: { key: string; label: string; onRemove: () => void }[] = [
+        ...(format ? [{ key: "format", label: `Format: ${labelFor(format)}`, onRemove: () => updateParams({ format: null, page: null }) }] : []),
+        ...(status ? [{ key: "status", label: `Status: ${labelFor(status)}`, onRemove: () => updateParams({ status: null, page: null }) }] : []),
+        ...(season ? [{ key: "season", label: `Season: ${labelFor(season)}`, onRemove: () => updateParams({ season: null, page: null }) }] : []),
+        ...(seasonYear ? [{ key: "seasonYear", label: `Year: ${seasonYear}`, onRemove: () => updateParams({ seasonYear: null, page: null }) }] : []),
+        ...selectedGenres.map((genre) => ({
+            key: `genre:${genre}`,
+            label: `Genre: ${genre}`,
+            onRemove: () => applyGenres(selectedGenres.filter((item) => item !== genre)),
+        })),
+    ];
+
     return (
         <>
             <AnimeNavbar />
@@ -151,8 +193,21 @@ function BrowseContent() {
                     <p>Explore the catalog by genre, format, status, season, and year.</p>
                 </header>
 
+                <div className="browse-search">
+                    <Search size={15} aria-hidden="true" />
+                    <input
+                        type="text"
+                        value={searchInput}
+                        onChange={(event) => setSearchInput(event.target.value)}
+                        placeholder="Search the anime catalog..."
+                        aria-label="Search anime catalog"
+                        autoComplete="off"
+                        spellCheck={false}
+                    />
+                </div>
+
                 <section className="browse-discovery-controls" aria-label="Anime filters">
-                    <GenreFilter allGenres={GENRES} selected={selectedGenres} onApply={applyGenres} />
+                    <GenreFilter allGenres={GENRES} selected={selectedGenres} onApply={applyGenres} autoApply />
                     <label>
                         <span>FORMAT</span>
                         <select value={format} onChange={(event) => updateParams({ format: event.target.value || null, page: null })}>
@@ -183,6 +238,17 @@ function BrowseContent() {
                     </label>
                     {hasFilters && <button type="button" className="browse-discovery-clear" onClick={clearFilters}><RotateCcw size={14} /> CLEAR</button>}
                 </section>
+
+                {activeChips.length > 0 && (
+                    <div className="browse-active-filters" aria-label="Active filters">
+                        {activeChips.map((chip) => (
+                            <span key={chip.key} className="browse-active-filter">
+                                {chip.label}
+                                <button type="button" onClick={chip.onRemove} aria-label={`Remove ${chip.label}`}>×</button>
+                            </span>
+                        ))}
+                    </div>
+                )}
 
                 <div className="anime-browse-meta">
                     <span>{state.loading ? "LOADING..." : state.error ? "BROWSE UNAVAILABLE" : `${state.total.toLocaleString()} RESULTS`}</span>

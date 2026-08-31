@@ -217,11 +217,15 @@ export default function Home() {
     });
   };
 
-  const handleExploreClick = (
+  // Upper (hero) CTA buttons — both smooth-scroll down to the bottom
+  // "Your next story is waiting" section (id="cta"); they never navigate.
+  const scrollToCta = () => smoothScrollTo("cta");
+
+  const handleCtaAnchorClick = (
     event: React.MouseEvent<HTMLAnchorElement>
   ) => {
     event.preventDefault();
-    smoothScrollTo("explore");
+    scrollToCta();
   };
 
   const sceneNumber = String(scene + 1).padStart(2, "0");
@@ -329,9 +333,9 @@ export default function Home() {
 
           <div className="hero-actions">
             <a
-              href="#explore"
+              href="#cta"
               className="primary-button"
-              onClick={handleExploreClick}
+              onClick={handleCtaAnchorClick}
             >
               Explore
               <ArrowRight size={18} />
@@ -339,7 +343,7 @@ export default function Home() {
 
             <button
               className="secondary-button"
-              onClick={() => router.push("/search")}
+              onClick={scrollToCta}
             >
               <Search size={18} />
               Search
@@ -745,7 +749,7 @@ export default function Home() {
           NEXT SECTION / CTA
       ========================= */}
 
-      <section id="explore" className="cta-section">
+      <section id="cta" className="cta-section">
         <div className="cta-content">
           <span className="cta-eyebrow">START YOUR JOURNEY</span>
 
@@ -760,14 +764,10 @@ export default function Home() {
           </p>
 
           <div className="cta-actions">
-            <a
-              href="#explore"
-              className="cta-primary"
-              onClick={handleExploreClick}
-            >
+            <Link href="/explore" className="cta-primary">
               Explore
               <ArrowRight size={18} />
-            </a>
+            </Link>
 
             <button
               className="cta-secondary"

@@ -8,6 +8,7 @@ import {
     Eye,
     Grid2X2,
     Home,
+    Search,
     UserRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -24,9 +25,14 @@ const navItems = [
         href: "/anime",
     },
     {
-        label: "Explore",
+        label: "Browse",
         icon: Grid2X2,
-        href: "/explore",
+        href: "/browse",
+    },
+    {
+        label: "Search",
+        icon: Search,
+        href: "/search",
     },
     {
         label: "Alerts",
@@ -103,11 +109,13 @@ export default function AnimeNavbar() {
             <span className="anime-navbar-divider" />
 
             <div className="anime-navbar-group">
-                {navItems.map((item, index) => {
+                {navItems.map((item) => {
                     const Icon = item.icon;
 
+                    // Divider before the account group (Profile onwards),
+                    // independent of how many items precede it.
                     const groupDivider =
-                        index === 3 ? (
+                        "auth" in item ? (
                             <span
                                 className="anime-navbar-divider"
                                 aria-hidden="true"

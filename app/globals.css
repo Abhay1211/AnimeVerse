@@ -4963,6 +4963,83 @@ button.profile-view-all { border: 0; padding: 0; background: transparent; cursor
   color: #fff;
 }
 
+/* Catalog search bar — matches the filter selects (sharp, mono). */
+.browse-search {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.browse-search > svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+.browse-search input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px 0 36px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0;
+  outline: none;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.browse-search input:focus {
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+.browse-search input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+/* Active-filter chips (rendered outside the filter row). */
+.browse-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+
+.browse-active-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.browse-active-filter button {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.browse-active-filter button:hover {
+  color: #fff;
+}
+
 .browse-discovery-page .anime-browse-grid {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
@@ -8663,6 +8740,11 @@ CARD-SKELETON
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Auto-apply mode (Browse): only the Clear button remains. */
+.genre-filter-actions.is-auto {
+  grid-template-columns: 1fr;
 }
 
 .genre-filter-apply,

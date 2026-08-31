@@ -14,7 +14,9 @@ type Mode = "search" | "ai";
  *
  *   - Search mode (default): anime search via the existing
  *     /api/anime/browse?search= endpoint (useAnimeSearch), rendered with the
- *     existing <AnimeCard> + .anime-browse-grid.
+ *     existing <AnimeCard> + .anime-browse-grid. Runs automatically as the
+ *     user types — the debounce, in-flight de-dupe and stale-result guard all
+ *     live in useAnimeSearch (same hook the home search bar uses).
  *   - Ask AI mode: there is no AI backend yet, so the toggle switches the view
  *     but the action stays disabled (unchanged behaviour).
  *
@@ -23,17 +25,16 @@ type Mode = "search" | "ai";
 export default function SearchPage() {
     const [mode, setMode] = useState<Mode>("search");
     const [query, setQuery] = useState("");
-    const [submitted, setSubmitted] = useState("");
 
-    // Submit-driven on this page (button / Enter), so no typing debounce.
     const { results, total, loading, error, term } = useAnimeSearch(
-        submitted,
-        { debounceMs: 0, perPage: 30 }
+        mode === "search" ? query : "",
+        { debounceMs: 280, perPage: 30 }
     );
 
-    const runSearch = () => {
-        setSubmitted(query.trim());
-    };
+    const trimmed = query.trim();
+    // True while the debounce is still catching up to the current input, so a
+    // freshly typed query never briefly shows "NO ANIME FOUND".
+    const searching = loading || (trimmed.length > 0 && trimmed !== term);
 
     return (
         <>
@@ -77,14 +78,6 @@ export default function SearchPage() {
                         onChange={(event) =>
                             setQuery(event.target.value)
                         }
-                        onKeyDown={(event) => {
-                            if (
-                                event.key === "Enter" &&
-                                mode === "search"
-                            ) {
-                                runSearch();
-                            }
-                        }}
                         placeholder={
                             mode === "search"
                                 ? "Search anime..."
@@ -99,15 +92,7 @@ export default function SearchPage() {
                         spellCheck={false}
                     />
 
-                    {mode === "search" ? (
-                        <button
-                            type="button"
-                            className="search-page-submit"
-                            onClick={runSearch}
-                        >
-                            Search
-                        </button>
-                    ) : (
+                    {mode === "ai" && (
                         <button
                             type="button"
                             className="search-page-submit"
@@ -119,17 +104,17 @@ export default function SearchPage() {
                     )}
                 </div>
 
-                {mode === "search" && !submitted && (
+                {mode === "search" && !trimmed && (
                     <p className="search-page-hint">
                         Type something to search for anime.
                     </p>
                 )}
 
-                {mode === "search" && submitted && (
+                {mode === "search" && trimmed && (
                     <>
                         <div className="anime-browse-meta">
                             <span>
-                                {loading
+                                {searching
                                     ? "SEARCHING..."
                                     : error
                                     ? "SEARCH UNAVAILABLE"
@@ -138,16 +123,10 @@ export default function SearchPage() {
                                       } FOUND`}
                             </span>
 
-                            <span>“{term}”</span>
+                            <span>“{trimmed}”</span>
                         </div>
 
-                        {!loading &&
-                        !error &&
-                        results.length === 0 ? (
-                            <div className="anime-browse-empty">
-                                NO ANIME FOUND.
-                            </div>
-                        ) : (
+                        {results.length > 0 ? (
                             <div className="anime-browse-grid">
                                 {results.map((anime) => (
                                     <AnimeCard
@@ -170,6 +149,14 @@ export default function SearchPage() {
                                     />
                                 ))}
                             </div>
+                        ) : (
+                            !searching &&
+                            !error &&
+                            term.length > 0 && (
+                                <div className="anime-browse-empty">
+                                    NO ANIME FOUND.
+                                </div>
+                            )
                         )}
                     </>
                 )}

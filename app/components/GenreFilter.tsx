@@ -13,19 +13,25 @@ type GenreFilterProps = {
     allGenres: readonly string[];
     /** Currently committed genre selection. */
     selected: string[];
-    /** Called with the new selection when the user presses Apply. */
+    /** Called with the new selection (on Apply, or on every change when `autoApply`). */
     onApply: (genres: string[]) => void;
+    /**
+     * When true, each toggle / clear is committed immediately and the Apply
+     * button is hidden. Default (false) keeps the staged Apply-to-commit flow.
+     */
+    autoApply?: boolean;
 };
 
 /**
- * Reference-style multi-select genre dropdown used on /genre/[genre].
- * Selection is staged locally and only committed via Apply, so the URL /
- * results are not touched until the user confirms.
+ * Reference-style multi-select genre dropdown used on /genre/[genre] and
+ * /browse. By default the selection is staged locally and only committed via
+ * Apply; pass `autoApply` to commit every change immediately.
  */
 export default function GenreFilter({
     allGenres,
     selected,
     onApply,
+    autoApply = false,
 }: GenreFilterProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
@@ -79,11 +85,16 @@ export default function GenreFilter({
         );
     }, [allGenres, query]);
 
+    const commit = (next: string[]) => {
+        setWorking(next);
+        if (autoApply) onApply(next);
+    };
+
     const toggleGenre = (genre: string) => {
-        setWorking((current) =>
-            current.includes(genre)
-                ? current.filter((item) => item !== genre)
-                : [...current, genre]
+        commit(
+            working.includes(genre)
+                ? working.filter((item) => item !== genre)
+                : [...working, genre]
         );
     };
 
@@ -148,22 +159,24 @@ export default function GenreFilter({
                         )}
                     </div>
 
-                    <div className="genre-filter-actions">
-                        <button
-                            type="button"
-                            className="genre-filter-apply"
-                            onClick={() => {
-                                onApply(working);
-                                setOpen(false);
-                            }}
-                        >
-                            Apply
-                        </button>
+                    <div className={`genre-filter-actions${autoApply ? " is-auto" : ""}`}>
+                        {!autoApply && (
+                            <button
+                                type="button"
+                                className="genre-filter-apply"
+                                onClick={() => {
+                                    onApply(working);
+                                    setOpen(false);
+                                }}
+                            >
+                                Apply
+                            </button>
+                        )}
 
                         <button
                             type="button"
                             className="genre-filter-clear"
-                            onClick={() => setWorking([])}
+                            onClick={() => commit([])}
                         >
                             Clear
                         </button>
