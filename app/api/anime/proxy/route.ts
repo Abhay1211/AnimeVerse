@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
     verifyProxySignature,
     buildSignedProxyUrl,
+    isProxyTargetAllowed,
 } from "../../../lib/megaplay-proxy";
 
 const CORS_HEADERS = {
@@ -116,14 +117,28 @@ export async function GET(request: Request) {
     const headersParam = requestUrl.searchParams.get("h") || "";
     const target = isProxyableUrl(targetValue);
     const signature = requestUrl.searchParams.get("sig") || "";
-    if (!target) {
+    if (!target || !isProxyTargetAllowed(target)) {
         return NextResponse.json(
-            { error: "Only signed provider URLs may be proxied" },
+            { error: "Only approved provider stream URLs may be proxied" },
             { status: 400, headers: CORS_HEADERS }
         );
     }
 
-    if (!signature || !verifyProxySignature(target.href, headersParam, signature)) {
+    let signatureValid = false;
+    try {
+        signatureValid =
+            Boolean(signature) &&
+            verifyProxySignature(target.href, headersParam, signature);
+    } catch (error) {
+        // Missing/invalid signing configuration — fail closed, never open.
+        console.error("HLS proxy misconfigured:", error);
+        return NextResponse.json(
+            { error: "Stream proxy is not configured" },
+            { status: 500, headers: CORS_HEADERS }
+        );
+    }
+
+    if (!signatureValid) {
         return NextResponse.json(
             { error: "Invalid proxy signature" },
             { status: 403, headers: CORS_HEADERS }
