@@ -4,18 +4,14 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
-  BookOpen,
   ExternalLink,
-  Film,
   Info,
-  MessageCircle,
   Play,
   Search,
-  Sparkles,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import AnimeVerseLogo from "./AnimeVerseLogo";
 
@@ -39,7 +35,11 @@ export default function Home() {
 
   const [scene, setScene] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [exploreOpen, setExploreOpen] = useState(false);
+  // The cinematic background clips are large. Keep them out of the initial
+  // page load: only attach a `src` once the page is idle, and skip them
+  // entirely when the browser reports Data Saver. Visual design is unchanged
+  // — the overlay/vignette cover the brief gap before the clip attaches.
+  const [videoArmed, setVideoArmed] = useState(false);
 
 
   /*
@@ -75,6 +75,27 @@ export default function Home() {
       "anime-verse-scene",
       String(nextScene)
     );
+
+    // Data Saver: leave the background as the static overlay, no video download.
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection;
+    if (connection?.saveData) return;
+
+    // Otherwise attach the clip once the browser is idle so the ~10–30 MB
+    // download never competes with the initial page render.
+    const idle = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    if (typeof idle.requestIdleCallback === "function") {
+      const handle = idle.requestIdleCallback(() => setVideoArmed(true), {
+        timeout: 2000,
+      });
+      return () => idle.cancelIdleCallback?.(handle);
+    }
+    const timer = window.setTimeout(() => setVideoArmed(true), 600);
+    return () => window.clearTimeout(timer);
   }, []);
 
   /*
@@ -116,7 +137,7 @@ export default function Home() {
   useEffect(() => {
     const video = videoRef.current;
 
-    if (!video) return;
+    if (!video || !videoArmed) return;
 
     video.muted = mutedRef.current;
 
@@ -142,7 +163,7 @@ export default function Home() {
     };
 
     startVideo();
-  }, [scene]);
+  }, [scene, videoArmed]);
 
   const changeScene = (direction: number) => {
     const next =
@@ -207,10 +228,10 @@ export default function Home() {
           ref={videoRef}
           key={videos[scene]}
           className="background-video"
-          src={videos[scene]}
+          src={videoArmed ? videos[scene] : undefined}
           autoPlay
           playsInline
-          preload="auto"
+          preload="metadata"
           onCanPlay={() => {
             const video = videoRef.current;
 
@@ -237,13 +258,13 @@ export default function Home() {
       ========================= */}
 
         <header className="topbar">
-          <a href="/" className="brand">
+          <Link href="/" className="brand">
             <div className="brand-mark">AV</div>
 
             <div className="brand-name">
               <strong>ANIME</strong> VERSE
             </div>
-          </a>
+          </Link>
 
           <button className="discord-button">
             <svg
@@ -774,64 +795,6 @@ export default function Home() {
           <p>© 2026 AnimeVerse. All rights reserved.</p>
         </div>
       </footer>
-
-      {exploreOpen && (
-        <div
-          className="explore-overlay"
-          onClick={() => setExploreOpen(false)}
-        >
-          <div
-            className="explore-modal glass-card-glow"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="explore-close"
-              onClick={() => setExploreOpen(false)}
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
-
-            <h3 className="text-glow">What would you like to explore?</h3>
-            <p className="explore-subtitle">Choose your destination</p>
-
-            <div className="explore-grid">
-              <a href="/anime" className="explore-card">
-                <div className="explore-card-icon">
-                  <Play size={22} fill="currentColor" />
-                </div>
-                <h4>Anime</h4>
-                <p>Watch episodes &amp; series.</p>
-              </a>
-
-              <a href="/manga" className="explore-card">
-                <div className="explore-card-icon">
-                  <BookOpen size={22} />
-                </div>
-                <h4>Manga</h4>
-                <p>Read manga &amp; manhwa.</p>
-              </a>
-
-              <a href="/movies" className="explore-card">
-                <div className="explore-card-icon">
-                  <Film size={22} />
-                </div>
-                <h4>Movies</h4>
-                <p>Watch movies &amp; films.</p>
-              </a>
-
-              <a href="/ai" className="explore-card">
-                <span className="explore-badge-new">New</span>
-                <div className="explore-card-icon">
-                  <Sparkles size={22} />
-                </div>
-                <h4>AI</h4>
-                <p>Chat with our AI.</p>
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

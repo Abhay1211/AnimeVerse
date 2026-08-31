@@ -132,7 +132,7 @@ export default function ProviderModal({
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-md"
+            className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/75 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] pt-[max(1.5rem,env(safe-area-inset-top,0px))] backdrop-blur-md"
             onMouseDown={(event) => {
                 if (event.target === event.currentTarget) {
                     onClose();
@@ -143,7 +143,7 @@ export default function ProviderModal({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="provider-modal-title"
-                className="relative w-full max-w-[400px] overflow-hidden rounded-2xl border border-white/10 bg-[#101010] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
+                className="relative my-auto max-h-full w-full max-w-[400px] overflow-y-auto rounded-2xl border border-white/10 bg-[#101010] shadow-[0_30px_100px_rgba(0,0,0,0.7)]"
             >
                 <div className="p-5">
                     <button

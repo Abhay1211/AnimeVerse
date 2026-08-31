@@ -8,6 +8,7 @@ import {
     Play,
     Sparkles,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 const destinations = [
@@ -33,7 +34,7 @@ const destinations = [
         icon: Film,
         href: "/movies",
         available: false,
-        video: "/explore/movies.mp4",
+        video: "/explore/movie.mp4",
     },
     {
         title: "Anime AI",
@@ -47,6 +48,20 @@ const destinations = [
 
 export default function ExplorePage() {
     const [activeVideo, setActiveVideo] = useState<string | null>(null);
+
+    // The preview clips (~25–30 MB) are a hover affordance. On touch devices
+    // there is no real hover, so never mount/download one there — a stray
+    // `mouseenter` on tap would otherwise start a large download mid-navigation.
+    // Clearing (`null`) is always allowed.
+    const previewVideo = (src: string | null) => {
+        if (src === null) {
+            setActiveVideo(null);
+            return;
+        }
+        if (window.matchMedia?.("(hover: hover) and (pointer: fine)").matches) {
+            setActiveVideo(src);
+        }
+    };
 
     return (
         <main className="explore-page">
@@ -63,10 +78,10 @@ export default function ExplorePage() {
             )}
 
             <div className="explore-video-overlay" />
-            <a href="/" className="explore-back">
+            <Link href="/" className="explore-back">
                 <ArrowLeft size={18} />
                 <span>Back</span>
-            </a>
+            </Link>
             <div className="explore-page-glow" />
 
             <section className="explore-container">
@@ -91,8 +106,8 @@ export default function ExplorePage() {
                                 <div
                                     key={destination.title}
                                     className="explore-destination disabled"
-                                    onMouseEnter={() => setActiveVideo(destination.video)}
-                                    onMouseLeave={() => setActiveVideo(null)}
+                                    onMouseEnter={() => previewVideo(destination.video)}
+                                    onMouseLeave={() => previewVideo(null)}
                                 >
                                     <span className="explore-coming-soon">
                                         COMING SOON
@@ -115,8 +130,8 @@ export default function ExplorePage() {
                                 key={destination.title}
                                 href={destination.href}
                                 className="explore-destination"
-                                onMouseEnter={() => setActiveVideo(destination.video)}
-                                onMouseLeave={() => setActiveVideo(null)}
+                                onMouseEnter={() => previewVideo(destination.video)}
+                                onMouseLeave={() => previewVideo(null)}
                             >
                                 <div className="explore-destination-icon">
                                     <Icon size={26} />

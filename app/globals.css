@@ -3794,7 +3794,7 @@ body {
   overflow-y: hidden;
   position: fixed;
   left: 50%;
-  bottom: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
 
   display: flex;
@@ -4470,7 +4470,9 @@ button.profile-view-all { border: 0; padding: 0; background: transparent; cursor
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top, 0px)) 20px
+    max(20px, env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
   background: rgba(3, 3, 3, 0.7);
   opacity: 0;
   transition: opacity 160ms ease;
@@ -7651,7 +7653,7 @@ button.profile-view-all { border: 0; padding: 0; background: transparent; cursor
   .anime-navbar {
     height: 46px;
     max-width: calc(100vw - 20px);
-    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     padding: 5px 6px;
   }
 

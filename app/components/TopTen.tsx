@@ -57,7 +57,7 @@ export default function TopTen({
 
                 <div className="top-ten-header">
                     <div className="top-ten-heading">
-                        <span className="top-ten-label">///</span>
+                        <span className="top-ten-label">{"///"}</span>
                         <h2>TOP 50</h2>
                     </div>
 
@@ -92,7 +92,7 @@ export default function TopTen({
                         </div>
 
                         <p className="top-ten-ranked-label">
-                            /// TOP RANKED ANIME
+                            {"/// TOP RANKED ANIME"}
                         </p>
                     </div>
                 </div>

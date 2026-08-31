@@ -545,6 +545,35 @@ export default function AnimeVerseVideoPlayer({
         setIsMuted(video.muted);
     }, [locked]);
 
+    // Fullscreen entry point. On iPhone the Fullscreen API is not available on
+    // elements, but the <video> exposes `webkitEnterFullscreen()` once its
+    // metadata has loaded — use that. Everywhere else (Android, desktop) defer
+    // to the page-level container fullscreen owned by <VideoPlayer>. Degrades
+    // to a no-op when neither path exists.
+    const requestFullscreen = useCallback(() => {
+        const video = videoRef.current as
+            | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
+            | null;
+        const canPageFullscreen =
+            typeof document !== "undefined" && document.fullscreenEnabled;
+
+        if (
+            !canPageFullscreen &&
+            video &&
+            typeof video.webkitEnterFullscreen === "function" &&
+            video.readyState >= 1
+        ) {
+            try {
+                video.webkitEnterFullscreen();
+                return;
+            } catch {
+                /* fall through to the page-level handler */
+            }
+        }
+
+        onToggleFullscreen?.();
+    }, [onToggleFullscreen]);
+
     useEffect(() => {
         keyboardActionsRef.current = {
             togglePlay,
@@ -552,7 +581,7 @@ export default function AnimeVerseVideoPlayer({
             changeVolume,
             toggleMute,
             wakeControls,
-            toggleFullscreen: () => onToggleFullscreen?.(),
+            toggleFullscreen: requestFullscreen,
             isFullscreen,
             volume,
             locked,
@@ -561,7 +590,7 @@ export default function AnimeVerseVideoPlayer({
         changeVolume,
         isFullscreen,
         locked,
-        onToggleFullscreen,
+        requestFullscreen,
         seekBy,
         toggleMute,
         togglePlay,
@@ -682,7 +711,7 @@ export default function AnimeVerseVideoPlayer({
         if (now - lastClickRef.current < 280) {
             lastClickRef.current = 0;
             clearPendingClick();
-            onToggleFullscreen?.();
+            requestFullscreen();
             return;
         }
 
@@ -901,7 +930,7 @@ export default function AnimeVerseVideoPlayer({
             )}
 
             {showSettings && !locked && (
-                <div ref={settingsPanelRef} className="absolute right-3 top-14 z-30 w-[min(78vw,240px)] rounded-xl border border-white/10 bg-black/90 p-4 font-mono text-xs shadow-2xl backdrop-blur-md">
+                <div ref={settingsPanelRef} className="absolute right-3 top-14 z-30 max-h-[calc(100%-4.5rem)] w-[min(78vw,240px)] overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-black/90 p-4 font-mono text-xs shadow-2xl backdrop-blur-md">
                     <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-3">
                         <span className="text-xs font-bold tracking-[0.14em] text-white/90">Settings</span>
                         <button
@@ -932,6 +961,102 @@ export default function AnimeVerseVideoPlayer({
                         </span>
                         <span className="text-[10px] text-white/35">LOCK</span>
                     </button>
+
+                    {/* Playback controls that live in the control bar on >=sm
+                        screens but are hidden there on mobile — surfaced here so
+                        every player control stays reachable at 360–412px. */}
+                    <div className="mb-3 space-y-3 border-b border-white/10 pb-3 sm:hidden">
+                        <div>
+                            <p className="mb-1.5 text-[10px] font-bold tracking-[0.18em] text-white/40">
+                                SUBTITLE TRACK
+                            </p>
+                            <div className="space-y-1">
+                                <button
+                                    type="button"
+                                    onClick={() => selectSubtitle("off")}
+                                    className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[11px] transition ${activeSubtitleIndex === "off" ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10"}`}
+                                >
+                                    <span>Off</span>
+                                    {activeSubtitleIndex === "off" && (
+                                        <Check className="h-3.5 w-3.5 shrink-0" />
+                                    )}
+                                </button>
+                                {subtitles.map((subtitle, index) => (
+                                    <button
+                                        key={`settings-sub-${subtitle.url}-${index}`}
+                                        type="button"
+                                        onClick={() => selectSubtitle(index)}
+                                        className={`flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-[11px] transition ${activeSubtitleIndex === index ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10"}`}
+                                    >
+                                        <span className="truncate">
+                                            {subtitle.language || `Track ${index + 1}`}
+                                        </span>
+                                        {activeSubtitleIndex === index && (
+                                            <Check className="h-3.5 w-3.5 shrink-0" />
+                                        )}
+                                    </button>
+                                ))}
+                                {subtitles.length === 0 && (
+                                    <p className="px-2.5 py-1.5 text-[11px] text-white/35">
+                                        No subtitles for this source
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {levels.length > 0 && (
+                            <div>
+                                <p className="mb-1.5 text-[10px] font-bold tracking-[0.18em] text-white/40">
+                                    QUALITY
+                                </p>
+                                {qualityAvailable ? (
+                                    <div className="space-y-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => changeQuality(-1)}
+                                            className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[11px] transition ${currentLevel < 0 ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10"}`}
+                                        >
+                                            <span>Auto</span>
+                                            {currentLevel < 0 && (
+                                                <Check className="h-3.5 w-3.5 shrink-0" />
+                                            )}
+                                        </button>
+                                        {sortedLevels.map((level) => (
+                                            <button
+                                                key={`settings-q-${level.index}`}
+                                                type="button"
+                                                onClick={() => changeQuality(level.index)}
+                                                className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[11px] transition ${currentLevel === level.index ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10"}`}
+                                            >
+                                                <span>{formatQuality(level)}</span>
+                                                {currentLevel === level.index && (
+                                                    <Check className="h-3.5 w-3.5 shrink-0" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="px-2.5 py-1.5 text-[11px] text-white/35">
+                                        {levels.length === 1
+                                            ? `Only ${formatQuality(levels[0])} available`
+                                            : "Quality unavailable"}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={toggleAutoNext}
+                            aria-pressed={autoNext}
+                            className="flex h-8 w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-2.5 text-left text-[11px] text-white/80 transition hover:bg-white/10"
+                        >
+                            <span>Autoplay next episode</span>
+                            <span className={`text-[10px] font-bold ${autoNext ? "text-white" : "text-white/35"}`}>
+                                {autoNext ? "ON" : "OFF"}
+                            </span>
+                        </button>
+                    </div>
 
                     <div className="space-y-3 text-[11px] text-white/60">
                         <div>
@@ -973,7 +1098,7 @@ export default function AnimeVerseVideoPlayer({
             )}
 
             <div
-                className={`absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent px-3 pb-4 pt-16 transition-opacity duration-300 md:px-5 md:pb-5 md:pt-16 ${controlsVisible && !locked ? "opacity-100" : "pointer-events-none opacity-0"}`}
+                className={`absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 to-transparent px-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] pt-16 transition-opacity duration-300 md:px-5 md:pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] md:pt-16 ${controlsVisible && !locked ? "opacity-100" : "pointer-events-none opacity-0"}`}
             >
                 <input
                     type="range"
@@ -1195,7 +1320,7 @@ export default function AnimeVerseVideoPlayer({
                             </div>
                         </div>
 
-                        <button type="button" onClick={onToggleFullscreen} className={controlButton} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>{isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}</button>
+                        <button type="button" onClick={requestFullscreen} className={controlButton} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>{isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}</button>
                     </div>
                 </div>
             </div>

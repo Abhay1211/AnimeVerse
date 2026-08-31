@@ -33,10 +33,14 @@ export default function GenreFilter({
 
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Keep the staged selection in sync with the committed one.
-    useEffect(() => {
+    // Keep the staged selection in sync with the committed one whenever the
+    // parent commits a new selection (adjust-state-during-render — no effect).
+    const selectedKey = selected.join("|");
+    const [syncedKey, setSyncedKey] = useState(selectedKey);
+    if (selectedKey !== syncedKey) {
+        setSyncedKey(selectedKey);
         setWorking(selected);
-    }, [selected.join("|")]);
+    }
 
     // Close when clicking outside the dropdown.
     useEffect(() => {

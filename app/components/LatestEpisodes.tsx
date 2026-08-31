@@ -73,7 +73,7 @@ export default function LatestEpisodes({
         <section className="catalog-row latest-episodes">
             <div className="row-heading">
                 <h2 className="row-title">
-                    <span>///</span>
+                    <span>{"///"}</span>
                     LATEST EPISODES
                 </h2>
             </div>

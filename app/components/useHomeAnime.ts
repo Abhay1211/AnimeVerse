@@ -82,11 +82,10 @@ export function useHomeAnime(): HomeAnimeState {
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        if (cached) {
-            setData(cached);
-            setLoading(false);
-            return;
-        }
+        // When the payload is already cached, the `useState` initializers above
+        // (`cached ?? EMPTY` / `!cached`) have already seeded the correct state,
+        // so there is nothing to fetch or set here.
+        if (cached) return;
 
         let active = true;
 

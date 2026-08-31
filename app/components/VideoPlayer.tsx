@@ -265,6 +265,16 @@ export default function VideoPlayer({
 
         if (!element) return;
 
+        // Element Fullscreen API is unavailable on iPhone (handled by the
+        // direct player via webkitEnterFullscreen) and on very old browsers —
+        // bail gracefully instead of throwing.
+        if (
+            typeof element.requestFullscreen !== "function" ||
+            typeof document.exitFullscreen !== "function"
+        ) {
+            return;
+        }
+
         if (document.fullscreenElement) {
             document.exitFullscreen().catch(() => {
                 /* ignore */

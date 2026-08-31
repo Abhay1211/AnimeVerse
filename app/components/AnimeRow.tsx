@@ -38,7 +38,7 @@ export default function AnimeRow({
         >
             <div className="row-heading">
                 <h2 className="row-title">
-                    <span>///</span>
+                    <span>{label}</span>
                     {title}
                 </h2>
             </div>

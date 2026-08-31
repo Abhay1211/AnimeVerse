@@ -533,11 +533,19 @@ export default function AnimeDetailPage() {
         });
     }, [anime]);
 
+    // Clear the countdown when the current title has no upcoming episode — the
+    // same reset the airing effect used to do inline, moved to an
+    // adjust-state-during-render check so it isn't a synchronous setState in an
+    // effect.
+    const hasAiring = Boolean(anime?.nextAiringEpisode);
+    const [trackedHasAiring, setTrackedHasAiring] = useState(false);
+    if (hasAiring !== trackedHasAiring) {
+        setTrackedHasAiring(hasAiring);
+        if (!hasAiring) setTimeLeft(null);
+    }
+
     useEffect(() => {
-        if (!anime?.nextAiringEpisode) {
-            setTimeLeft(null);
-            return;
-        }
+        if (!anime?.nextAiringEpisode) return;
 
         const updateCountdown = () => {
             const remaining =

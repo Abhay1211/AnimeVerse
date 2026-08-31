@@ -93,6 +93,17 @@ export default function WatchPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Whether the URL describes a real episode to load. Invalid params (e.g.
+    // `?episode=abc`) surface as a derived error/loading below instead of a
+    // synchronous setState inside the load effect.
+    const paramsValid =
+        Boolean(animeId) &&
+        Number.isInteger(episode) &&
+        episode > 0 &&
+        AUDIO_TYPES.includes(type);
+    const displayError = paramsValid ? error : "Invalid episode information";
+    const displayLoading = paramsValid ? loading : false;
+
     type EpisodeImage = {
         title: string | null;
         thumbnail: string | null;
@@ -172,22 +183,14 @@ export default function WatchPage() {
             }
         }
 
-        if (
-            animeId &&
-            Number.isInteger(episode) &&
-            episode > 0 &&
-            AUDIO_TYPES.includes(type)
-        ) {
+        if (paramsValid) {
             loadSource();
-        } else {
-            setError("Invalid episode information");
-            setLoading(false);
         }
 
         return () => {
             cancelled = true;
         };
-    }, [animeId, episode, type, selectedProvider]);
+    }, [animeId, episode, type, selectedProvider, paramsValid]);
 
     // Surrounding watch-page UI (title, seasons, episodes, airing) comes from
     // the existing anime-detail endpoint. Playback does not depend on it.
@@ -575,7 +578,7 @@ export default function WatchPage() {
         "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3.5 font-mono text-xs font-medium text-white/75 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-white/75";
 
     return (
-        <main className="min-h-screen bg-black pb-24 pt-4 text-white">
+        <main className="min-h-screen bg-black pb-[calc(6rem+env(safe-area-inset-bottom,0px))] pt-4 text-white">
             <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-8">
                 {/* Breadcrumb / episode nav */}
                 <div className="flex items-center gap-2 pb-2 pt-3 text-sm">
@@ -635,8 +638,8 @@ export default function WatchPage() {
                                     ? anime?.title
                                     : `Episode ${episode}`
                             }
-                            loading={loading}
-                            error={error}
+                            loading={displayLoading}
+                            error={displayError}
                             onPreviousEpisode={hasPrev ? () => goToEpisode(episode - 1) : undefined}
                             onNextEpisode={hasNext ? () => goToEpisode(episode + 1) : undefined}
                             resumeTime={resumeTime}
@@ -645,7 +648,7 @@ export default function WatchPage() {
                             onPlaybackPause={handlePlaybackPause}
                         />
 
-                        {error && (
+                        {displayError && (
                             <div className="mt-3 text-center">
                                 <Link
                                     href={`/anime/${animeId}`}
