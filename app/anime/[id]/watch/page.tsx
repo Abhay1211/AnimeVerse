@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import VideoPlayer from "../../../components/VideoPlayer";
@@ -18,6 +18,12 @@ import {
     watchSectionHeading,
 } from "../../../components/watchUi";
 import type { VideoSource } from "../../../lib/providers/types";
+import {
+    getWatchProgress,
+    recordWatchProgress,
+    type WatchProgressInput,
+} from "../../../lib/watchProgress";
+import { useAuthUser } from "../../../lib/useAuthUser";
 
 type AudioType = "sub" | "dub";
 
@@ -35,6 +41,8 @@ type WatchResponse = {
     sources: VideoSource[];
     error?: string;
 };
+
+type ProgressSnapshot = WatchProgressInput & { uid: string };
 
 const AUDIO_TYPES: AudioType[] = ["sub", "dub"];
 
@@ -76,6 +84,7 @@ export default function WatchPage() {
     const provider = searchParams.get("provider");
     const selectedProvider = provider;
     const router = useRouter();
+    const { user, loading: authLoading } = useAuthUser();
 
     const [source, setSource] = useState<VideoSource | null>(null);
     const [providerList, setProviderList] = useState<WatchProvider[]>(
@@ -374,6 +383,174 @@ export default function WatchPage() {
     const railThumbnail = anime?.poster ?? anime?.banner ?? null;
     const seasonNumber = structure?.currentSeasonNumber ?? 1;
 
+    const progressIdentity = `${animeId}:${seasonNumber}:${episode}`;
+    const resumeIdentity = `${user?.uid ?? "signed-out"}:${progressIdentity}`;
+    const [resumeState, setResumeState] = useState<{
+        key: string;
+        position: number | null;
+    }>({ key: "", position: null });
+    const latestProgressRef = useRef<ProgressSnapshot | null>(null);
+    const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const progressWriteChainRef = useRef(Promise.resolve());
+    if (resumeState.key !== resumeIdentity) {
+        setResumeState({ key: resumeIdentity, position: null });
+    }
+
+    const progressContext = useMemo(
+        () =>
+            user && anime && Number.isInteger(episode) && episode > 0
+                ? {
+                      uid: user.uid,
+                      animeId: anime.id,
+                      title: anime.title,
+                      poster: anime.poster,
+                      season: seasonNumber,
+                      episode,
+                  }
+                : null,
+        [anime, episode, seasonNumber, user]
+    );
+
+    const enqueueProgressWrite = useCallback((snapshot: ProgressSnapshot) => {
+        progressWriteChainRef.current = progressWriteChainRef.current
+            .catch(() => undefined)
+            .then(() =>
+                recordWatchProgress(snapshot.uid, {
+                    animeId: snapshot.animeId,
+                    title: snapshot.title,
+                    poster: snapshot.poster,
+                    season: snapshot.season,
+                    episode: snapshot.episode,
+                    currentTime: snapshot.currentTime,
+                    duration: snapshot.duration,
+                })
+            );
+    }, []);
+
+    const flushProgress = useCallback(() => {
+        if (progressTimerRef.current) {
+            clearTimeout(progressTimerRef.current);
+            progressTimerRef.current = null;
+        }
+
+        const snapshot = latestProgressRef.current;
+        if (snapshot) {
+            latestProgressRef.current = null;
+            enqueueProgressWrite(snapshot);
+        }
+    }, [enqueueProgressWrite]);
+
+    const queueProgress = useCallback(
+        (currentTime: number, duration: number) => {
+            const context = progressContext;
+            if (
+                !context ||
+                !Number.isFinite(currentTime) ||
+                currentTime < 0 ||
+                !Number.isFinite(duration) ||
+                duration <= 0
+            ) {
+                return;
+            }
+
+            latestProgressRef.current = {
+                ...context,
+                currentTime,
+                duration,
+            };
+
+            if (!progressTimerRef.current) {
+                progressTimerRef.current = setTimeout(() => {
+                    progressTimerRef.current = null;
+                    flushProgress();
+                }, 5_000);
+            }
+        },
+        [flushProgress, progressContext]
+    );
+
+    const saveProgressNow = useCallback(
+        (currentTime: number, duration: number) => {
+            queueProgress(currentTime, duration);
+            flushProgress();
+        },
+        [flushProgress, queueProgress]
+    );
+
+    useEffect(() => {
+        if (
+            authLoading ||
+            !user ||
+            !anime ||
+            !Number.isInteger(episode) ||
+            episode < 1
+        ) {
+            return;
+        }
+
+        let cancelled = false;
+
+        getWatchProgress(user.uid, anime.id)
+            .then((progress) => {
+                if (cancelled) return;
+
+                const sameEpisode =
+                    progress?.season === seasonNumber &&
+                    progress.episode === episode;
+                const savedPosition = progress?.currentTime;
+                const savedDuration = progress?.duration;
+                const validPosition =
+                    sameEpisode &&
+                    savedPosition !== null &&
+                    savedPosition !== undefined &&
+                    Number.isFinite(savedPosition) &&
+                    savedPosition >= 0 &&
+                    (!savedDuration ||
+                        (savedPosition < savedDuration &&
+                            savedDuration - savedPosition > 10));
+
+                setResumeState({
+                    key: resumeIdentity,
+                    position: validPosition ? savedPosition : null,
+                });
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setResumeState({ key: resumeIdentity, position: null });
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [anime, authLoading, episode, resumeIdentity, seasonNumber, user]);
+
+    useEffect(() => {
+        return () => flushProgress();
+    }, [flushProgress, progressIdentity]);
+
+    useEffect(() => {
+        const handlePageHide = () => flushProgress();
+        window.addEventListener("pagehide", handlePageHide);
+        return () => window.removeEventListener("pagehide", handlePageHide);
+    }, [flushProgress]);
+
+    const resumeTime =
+        resumeState.key === resumeIdentity ? resumeState.position : null;
+
+    const handlePlaybackReady = useCallback(
+        (duration: number) => queueProgress(0, duration),
+        [queueProgress]
+    );
+    const handlePlaybackTimeUpdate = useCallback(
+        (currentTime: number, duration: number) => queueProgress(currentTime, duration),
+        [queueProgress]
+    );
+    const handlePlaybackPause = useCallback(
+        (currentTime: number, duration: number) => saveProgressNow(currentTime, duration),
+        [saveProgressNow]
+    );
+
     const servers: WatchProvider[] =
         providerList.length > 0
             ? providerList
@@ -460,6 +637,12 @@ export default function WatchPage() {
                             }
                             loading={loading}
                             error={error}
+                            onPreviousEpisode={hasPrev ? () => goToEpisode(episode - 1) : undefined}
+                            onNextEpisode={hasNext ? () => goToEpisode(episode + 1) : undefined}
+                            resumeTime={resumeTime}
+                            onPlaybackReady={handlePlaybackReady}
+                            onPlaybackTimeUpdate={handlePlaybackTimeUpdate}
+                            onPlaybackPause={handlePlaybackPause}
                         />
 
                         {error && (

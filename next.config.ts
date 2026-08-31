@@ -9,6 +9,16 @@ const nextConfig: NextConfig = {
         destination: "/browse",
         permanent: false,
       },
+      // Saved / Favorites / Continue Watching are unified into /library.
+      // Data (the saved/favorites/watch-progress collections) is unchanged;
+      // only the routes collapse.
+      { source: "/saved", destination: "/library", permanent: false },
+      { source: "/favorites", destination: "/library", permanent: false },
+      {
+        source: "/continue-watching",
+        destination: "/library?filter=watching",
+        permanent: false,
+      },
     ];
   },
 };

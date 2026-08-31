@@ -1,8 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+    ChevronDown,
+    ChevronRight,
+    ChevronUp,
+    Heart,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AnimeNavbar from "../../components/AnimeNavbar";
 import ProviderModal, { PROVIDERS } from "../../components/ProviderModal";
@@ -12,37 +17,21 @@ import {
     formatScore,
     type Anime,
 } from "../../data/anime";
+import {
+    addFavorite,
+    isAnimeFavorited,
+    removeFavorite,
+} from "../../lib/favorites";
+import { recordRecentlyViewed } from "../../lib/recentlyViewed";
+import {
+    isAnimeSaved,
+    saveAnime,
+    unsaveAnime,
+} from "../../lib/saved";
+import { getWatchProgress } from "../../lib/watchProgress";
+import { useAuthUser } from "../../lib/useAuthUser";
 
 const EPISODE_PAGE_SIZE = 9;
-
-/** Toggle an anime id inside a localStorage-backed list. Returns the new "on" state. */
-function toggleStoredId(key: string, id: string): boolean {
-    try {
-        const current: string[] = JSON.parse(
-            window.localStorage.getItem(key) || "[]"
-        );
-        const has = current.includes(id);
-        const next = has
-            ? current.filter((item) => item !== id)
-            : [...current, id];
-
-        window.localStorage.setItem(key, JSON.stringify(next));
-        return !has;
-    } catch {
-        return false;
-    }
-}
-
-function readStoredId(key: string, id: string): boolean {
-    try {
-        const current: string[] = JSON.parse(
-            window.localStorage.getItem(key) || "[]"
-        );
-        return current.includes(id);
-    } catch {
-        return false;
-    }
-}
 
 function formatTimeLeft(seconds: number) {
     const days = Math.floor(seconds / 86400);
@@ -99,8 +88,16 @@ export default function AnimeDetailPage() {
     const [selectedProvider, setSelectedProvider] =
         useState<string>("megaplay");
 
-    const [favorite, setFavorite] = useState(false);
-    const [planned, setPlanned] = useState(false);
+    const [favoriteState, setFavoriteState] = useState<{
+        key: string | null;
+        value: boolean;
+    }>({ key: null, value: false });
+    const [favoritePending, setFavoritePending] = useState(false);
+    const [savedState, setSavedState] = useState<{
+        key: string | null;
+        value: boolean;
+    }>({ key: null, value: false });
+    const [savedPending, setSavedPending] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<
         "overview" | "episodes" | "more"
@@ -108,6 +105,10 @@ export default function AnimeDetailPage() {
     const [visibleEpisodeCount, setVisibleEpisodeCount] =
         useState(EPISODE_PAGE_SIZE);
     const [selectedEpisode, setSelectedEpisode] = useState(1);
+    const [watchProgressState, setWatchProgressState] = useState<{
+        key: string | null;
+        episode: number | null;
+    }>({ key: null, episode: null });
     const [tmdbEpisodes, setTmdbEpisodes] = useState<{
         animeId: string;
         /** TMDB metadata keyed by ABSOLUTE (franchise-wide) episode number. */
@@ -115,6 +116,7 @@ export default function AnimeDetailPage() {
         /** Highest absolute episode number TMDB returned for the franchise. */
         total: number;
     } | null>(null);
+    const { user, loading: authLoading } = useAuthUser();
 
     const showToast = useCallback((message: string) => {
         setToast(message);
@@ -295,31 +297,174 @@ export default function AnimeDetailPage() {
         visibleEpisodeCount > EPISODE_PAGE_SIZE &&
         visibleEpisodes.length > EPISODE_PAGE_SIZE;
 
-    // Restore favourite / plan-to-watch state from localStorage for this anime.
     useEffect(() => {
-        if (!id) return;
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setFavorite(readStoredId("animeverse:favorites", id));
-        setPlanned(readStoredId("animeverse:plan-to-watch", id));
-    }, [id]);
+        if (authLoading || !anime) return;
 
-    const toggleFavorite = () => {
-        const on = toggleStoredId("animeverse:favorites", id);
-        setFavorite(on);
-        showToast(
-            on ? "Added to favorites" : "Removed from favorites"
-        );
+        if (!user) {
+            return;
+        }
+
+        let cancelled = false;
+        const key = `${user.uid}:${anime.id}`;
+
+        isAnimeSaved(user.uid, anime.id)
+            .then((value) => {
+                if (!cancelled) setSavedState({ key, value });
+            })
+            .catch((error) => {
+                if (!cancelled && process.env.NODE_ENV !== "production") {
+                    console.error("Failed to check saved anime:", error);
+                }
+                if (!cancelled) setSavedState({ key, value: false });
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [anime, authLoading, user]);
+
+    const savedKey = user && anime ? `${user.uid}:${anime.id}` : null;
+    const savedLoading =
+        authLoading ||
+        (savedKey !== null && savedState.key !== savedKey);
+    const saved =
+        savedKey !== null &&
+        savedState.key === savedKey &&
+        savedState.value;
+
+    useEffect(() => {
+        if (authLoading || !anime || !user) return;
+
+        let cancelled = false;
+        const key = `${user.uid}:${anime.id}`;
+
+        getWatchProgress(user.uid, anime.id)
+            .then((progress) => {
+                if (!cancelled) {
+                    setWatchProgressState({
+                        key,
+                        episode: progress?.episode ?? null,
+                    });
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setWatchProgressState({ key, episode: null });
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [anime, authLoading, user]);
+
+    const watchProgressKey = user && anime ? `${user.uid}:${anime.id}` : null;
+    const continueEpisode =
+        watchProgressKey !== null && watchProgressState.key === watchProgressKey
+            ? watchProgressState.episode
+            : null;
+
+    useEffect(() => {
+        if (authLoading || !anime || !user) return;
+
+        let cancelled = false;
+        const key = `${user.uid}:${anime.id}`;
+
+        isAnimeFavorited(user.uid, anime.id)
+            .then((value) => {
+                if (!cancelled) setFavoriteState({ key, value });
+            })
+            .catch((error) => {
+                if (!cancelled && process.env.NODE_ENV !== "production") {
+                    console.error("Failed to check favorite anime:", error);
+                }
+                if (!cancelled) setFavoriteState({ key, value: false });
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [anime, authLoading, user]);
+
+    const favoriteKey = user && anime ? `${user.uid}:${anime.id}` : null;
+    const favoriteLoading =
+        authLoading ||
+        (favoriteKey !== null && favoriteState.key !== favoriteKey);
+    const favorite =
+        favoriteKey !== null &&
+        favoriteState.key === favoriteKey &&
+        favoriteState.value;
+
+    const toggleFavorite = async () => {
+        if (favoritePending || favoriteLoading || authLoading || !anime) {
+            return;
+        }
+
+        if (!user) {
+            router.push("/auth");
+            return;
+        }
+
+        setFavoritePending(true);
+        const wasFavorite = favorite;
+
+        try {
+            if (wasFavorite) {
+                await removeFavorite(user.uid, anime.id);
+                setFavoriteState({ key: favoriteKey, value: false });
+                showToast("Removed from Favorites");
+            } else {
+                await addFavorite(user.uid, {
+                    animeId: anime.id,
+                    title: anime.title,
+                    poster: anime.poster,
+                });
+                setFavoriteState({ key: favoriteKey, value: true });
+                showToast("Added to Favorites");
+            }
+        } catch (error) {
+            if (process.env.NODE_ENV !== "production") {
+                console.error("Failed to update favorite anime:", error);
+            }
+            showToast("Couldn\u2019t update Favorites");
+        } finally {
+            setFavoritePending(false);
+        }
     };
 
-    const togglePlanned = () => {
-        const on = toggleStoredId(
-            "animeverse:plan-to-watch",
-            id
-        );
-        setPlanned(on);
-        showToast(
-            on ? "Added to Plan to Watch" : "Removed from Plan to Watch"
-        );
+    const toggleSaved = async () => {
+        if (savedPending || savedLoading || authLoading || !anime) return;
+
+        if (!user) {
+            router.push("/auth");
+            return;
+        }
+
+        setSavedPending(true);
+        const wasSaved = saved;
+
+        try {
+            if (wasSaved) {
+                await unsaveAnime(user.uid, anime.id);
+                setSavedState({ key: savedKey, value: false });
+                showToast("Removed from Saved");
+            } else {
+                await saveAnime(user.uid, {
+                    animeId: anime.id,
+                    title: anime.title,
+                    poster: anime.poster,
+                });
+                setSavedState({ key: savedKey, value: true });
+                showToast("Added to Saved");
+            }
+        } catch (error) {
+            if (process.env.NODE_ENV !== "production") {
+                console.error("Failed to update saved anime:", error);
+            }
+            showToast("Couldn\u2019t update Saved");
+        } finally {
+            setSavedPending(false);
+        }
     };
 
     const shareAnime = async () => {
@@ -371,6 +516,22 @@ export default function AnimeDetailPage() {
 
         loadAnime();
     }, [id]);
+
+    // Record this anime in the signed-in user's "Recently Viewed" list once its
+    // detail data is available. Fire-and-forget — it never blocks or breaks the
+    // page, does nothing when signed out, and the ref keeps React Strict Mode's
+    // double-invoke (and any re-render) to a single Firestore write per anime.
+    const recordedIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!anime || recordedIdRef.current === anime.id) return;
+        recordedIdRef.current = anime.id;
+
+        void recordRecentlyViewed({
+            animeId: anime.id,
+            title: anime.title,
+            poster: anime.poster,
+        });
+    }, [anime]);
 
     useEffect(() => {
         if (!anime?.nextAiringEpisode) {
@@ -611,7 +772,7 @@ export default function AnimeDetailPage() {
                                         type="button"
                                         className="anime-detail-watch"
                                         onClick={() => {
-                                            setSelectedEpisode(1);
+                                            setSelectedEpisode(continueEpisode ?? 1);
                                             setShowProviderModal(true);
                                         }}
                                     >
@@ -629,23 +790,26 @@ export default function AnimeDetailPage() {
                                             <polygon points="6 3 20 12 6 21 6 3" />
                                         </svg>
 
-                                        Watch Now
+                                        {continueEpisode
+                                            ? `Continue Episode ${continueEpisode}`
+                                            : "Watch Now"}
                                     </button>
 
                                     <button
                                         type="button"
                                         className={`anime-detail-secondary${
-                                            planned ? " is-active" : ""
+                                            saved ? " is-active" : ""
                                         }`}
-                                        aria-pressed={planned}
-                                        onClick={togglePlanned}
+                                        aria-pressed={saved}
+                                        onClick={toggleSaved}
+                                        disabled={savedLoading || savedPending}
                                     >
                                         <svg
                                             xmlns="http://www.w3.org/2000/svg"
                                             width="14"
                                             height="14"
                                             viewBox="0 0 24 24"
-                                            fill={planned ? "currentColor" : "none"}
+                                            fill={saved ? "currentColor" : "none"}
                                             stroke="currentColor"
                                             strokeWidth="2"
                                             strokeLinecap="round"
@@ -654,43 +818,50 @@ export default function AnimeDetailPage() {
                                             <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
                                         </svg>
 
-                                        {planned
-                                            ? "In Plan to Watch"
-                                            : "Plan to Watch"}
+                                        {savedPending
+                                            ? "Saving…"
+                                            : savedLoading
+                                              ? "Loading…"
+                                              : saved
+                                                ? "Unsave"
+                                                : "Save"}
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        className="anime-detail-secondary"
+                                        aria-label={
+                                            favorite
+                                                ? "Remove from favorites"
+                                                : "Add to favorites"
+                                        }
+                                        aria-pressed={favorite}
+                                        onClick={toggleFavorite}
+                                        disabled={
+                                            favoriteLoading || favoritePending
+                                        }
+                                    >
+                                        <Heart
+                                            size={16}
+                                            fill={
+                                                favorite
+                                                    ? "#ff4d67"
+                                                    : "none"
+                                            }
+                                            color={
+                                                favorite
+                                                    ? "#ff4d67"
+                                                    : "currentColor"
+                                            }
+                                            aria-hidden="true"
+                                        />
+                                        Favorite
                                     </button>
                                 </div>
                             </div>
 
                             {/* RIGHT POSTER */}
                             <div className="anime-detail-poster">
-                                <button
-                                    type="button"
-                                    className={`anime-detail-favorite${
-                                        favorite ? " is-active" : ""
-                                    }`}
-                                    aria-label={
-                                        favorite
-                                            ? "Remove from favorites"
-                                            : "Add to favorites"
-                                    }
-                                    aria-pressed={favorite}
-                                    onClick={toggleFavorite}
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill={favorite ? "currentColor" : "none"}
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-                                    </svg>
-                                </button>
-
                                 <img
                                     src={anime.poster}
                                     alt={anime.title}
@@ -707,19 +878,16 @@ export default function AnimeDetailPage() {
                                         </strong>
                                     </div>
 
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="18"
-                                        height="18"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />
-                                    </svg>
+                                    <div>
+                                        <p>Episodes</p>
+                                        <strong>
+                                            {anime.type?.toUpperCase() ===
+                                            "MOVIE"
+                                                ? "—"
+                                                : anime.episodes ?? "Unknown"}
+                                        </strong>
+                                    </div>
+
                                 </div>
                             </div>
                         </div>

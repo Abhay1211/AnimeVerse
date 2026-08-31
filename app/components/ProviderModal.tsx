@@ -25,6 +25,13 @@ export const PROVIDERS: Provider[] = [
         meta: "Provider 2 - Sub/Dub",
         icon: "layers",
     },
+    {
+        id: "vidhawk",
+        name: "VidHawk",
+        description: "VidHawk embed · Sub/Dub",
+        meta: "Provider 3 - Embedded player",
+        icon: "globe",
+    },
 ];
 
 type ProviderModalProps = {

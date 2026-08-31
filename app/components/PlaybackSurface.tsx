@@ -52,6 +52,14 @@ export type PlaybackSurfaceProps = {
     /** Fullscreen state/action owned by the outer player shell. */
     isFullscreen?: boolean;
     onToggleFullscreen?: () => void;
+
+    /** Episode navigation actions for the direct player controls. */
+    onPreviousEpisode?: () => void;
+    onNextEpisode?: () => void;
+    resumeTime?: number | null;
+    onPlaybackReady?: (duration: number) => void;
+    onPlaybackTimeUpdate?: (currentTime: number, duration: number) => void;
+    onPlaybackPause?: (currentTime: number, duration: number) => void;
 };
 
 export default function PlaybackSurface({
@@ -65,6 +73,12 @@ export default function PlaybackSurface({
     subtitles,
     isFullscreen,
     onToggleFullscreen,
+    onPreviousEpisode,
+    onNextEpisode,
+    resumeTime,
+    onPlaybackReady,
+    onPlaybackTimeUpdate,
+    onPlaybackPause,
 }: PlaybackSurfaceProps) {
     if (implementation === "iframe") {
         return (
@@ -72,8 +86,11 @@ export default function PlaybackSurface({
                 key={reloadToken}
                 src={url}
                 title={title ?? "Video player"}
-                className="absolute inset-0 h-full w-full border-0"
-                allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                width="100%"
+                height="100%"
+                className="absolute inset-0 h-full w-full"
+                style={{ aspectRatio: "16 / 9", border: 0 }}
+                allow="autoplay; fullscreen; picture-in-picture; encrypted-media; screen-wake-lock"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                 allowFullScreen
                 referrerPolicy="origin"
@@ -94,6 +111,12 @@ export default function PlaybackSurface({
                 isFullscreen={isFullscreen}
                 onReady={onReady}
                 onToggleFullscreen={onToggleFullscreen}
+                onPreviousEpisode={onPreviousEpisode}
+                onNextEpisode={onNextEpisode}
+                resumeTime={resumeTime}
+                onPlaybackReady={onPlaybackReady}
+                onPlaybackTimeUpdate={onPlaybackTimeUpdate}
+                onPlaybackPause={onPlaybackPause}
             />
         );
     }

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "anime-sdk": "^1.1.0",
+    "firebase": "^12.18.0",
     "hls.js": "^1.7.1",
     "lucide-react": "^1.33.0",
     "next": "16.3.2",

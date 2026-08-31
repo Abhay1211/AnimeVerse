@@ -130,11 +130,17 @@ const megaplaySdkProvider: Provider = {
         }
 
         try {
-            const units = await fetchUnits(animeId);
-            const unit = units.find((candidate) => candidate.number === episode);
-            if (!unit) return [];
+            // MegaPlay is addressed directly by (AniList id, episode): the SDK
+            // builds unit ids as `megaplay:<anilistId>:<episode>` and resolves the
+            // stream straight from that pair via /stream/ani/<anilistId>/<episode>.
+            // Its episode listing under-reports ongoing series (it trusts
+            // AniList `Media.episodes`, which is null for e.g. One Piece, so
+            // fetchContentUnits yields a single stub episode), so stream
+            // resolution must not be gated on fetchUnits(). This mirrors the
+            // pre-SDK MegaPlay adapter, which hit the embed endpoint directly.
+            const unitUrn = `megaplay:${animeId.trim()}:${episode}`;
 
-            const resolved = await megaplay.resolveStream(unit.id, type);
+            const resolved = await megaplay.resolveStream(unitUrn, type);
             if (resolved.type !== "video") return [];
 
             return resolved.streams

@@ -92,6 +92,14 @@ type VideoPlayerProps = {
 
     /** Upstream error message, if the source could not be resolved. */
     error?: string | null;
+
+    /** Episode navigation controls for the direct player surface. */
+    onPreviousEpisode?: () => void;
+    onNextEpisode?: () => void;
+    resumeTime?: number | null;
+    onPlaybackReady?: (duration: number) => void;
+    onPlaybackTimeUpdate?: (currentTime: number, duration: number) => void;
+    onPlaybackPause?: (currentTime: number, duration: number) => void;
 };
 
 function PlayIcon({ className }: { className?: string }) {
@@ -196,6 +204,12 @@ export default function VideoPlayer({
     title,
     loading = false,
     error = null,
+    onPreviousEpisode,
+    onNextEpisode,
+    resumeTime,
+    onPlaybackReady,
+    onPlaybackTimeUpdate,
+    onPlaybackPause,
 }: VideoPlayerProps) {
     const embedUrl = useMemo(() => {
         const trimmed = src?.trim();
@@ -338,6 +352,12 @@ export default function VideoPlayer({
                     isFullscreen={isFullscreen}
                     onToggleFullscreen={toggleFullscreen}
                     onReady={() => setFrameLoaded(true)}
+                    onPreviousEpisode={onPreviousEpisode}
+                    onNextEpisode={onNextEpisode}
+                    resumeTime={resumeTime}
+                    onPlaybackReady={onPlaybackReady}
+                    onPlaybackTimeUpdate={onPlaybackTimeUpdate}
+                    onPlaybackPause={onPlaybackPause}
                 />
             )}
 

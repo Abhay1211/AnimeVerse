@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // users/{uid} — one profile document per Firebase Auth user.
+    // A user may read/create/update only their own document. No cross-user
+    // access; unauthenticated requests are denied. Deletes are not allowed.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+
+      // users/{uid}/recentlyViewed/{animeId} — anime the user has opened.
+      // Same owner-only model (rules do not inherit, so it is restated).
+      // setDoc(..., { merge: true }) needs create + update; listing needs read;
+      // delete backs the "Clear All" action on the Recently Viewed page.
+      match /recentlyViewed/{animeId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid;
+        allow update: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // users/{uid}/saved/{animeId} — anime saved by the user.
+      // Same owner-only model; delete is required for Unsave.
+      match /saved/{animeId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid;
+        allow update: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // users/{uid}/favorites/{animeId} — anime favorited by the user.
+      // Same owner-only model; delete is required for Unfavorite.
+      match /favorites/{animeId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid;
+        allow update: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // users/{uid}/watch-progress/{animeId} — the user's latest episode.
+      // Same owner-only model; progress is private and deletable by its owner.
+      match /watch-progress/{animeId} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid;
+        allow update: if request.auth != null && request.auth.uid == uid;
+        allow delete: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // Everything else is denied by default (no catch-all allow rule).
+  }
+}

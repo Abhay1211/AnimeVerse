@@ -2,7 +2,8 @@ export type AudioType = "sub" | "dub";
 
 export type ProviderCategory =
     | "megaplay"
-    | "cloudplay";
+    | "cloudplay"
+    | "vidhawk";
 
 export type VideoSourceKind = "iframe" | "direct";
 

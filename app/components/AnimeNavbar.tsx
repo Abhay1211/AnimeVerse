@@ -5,12 +5,17 @@ import {
     ArrowRight,
     Bell,
     Bookmark,
+    Eye,
     Grid2X2,
     Home,
     UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Fragment, useRef, useState } from "react";
+
+import { useAuthUser } from "../lib/useAuthUser";
+import AccountMenu from "./AccountMenu";
 
 const navItems = [
     {
@@ -32,24 +37,45 @@ const navItems = [
     {
         label: "Profile",
         icon: UserRound,
-        href: "#",
+        href: "/profile",
         disabled: true,
+        // Signed out -> /auth. Signed in -> /profile. Resolved at render time
+        // from the shared auth state.
+        auth: true,
     },
     {
-        label: "Saved",
+        label: "List",
         icon: Bookmark,
-        href: "#",
-        disabled: true,
+        href: "/library",
+    },
+    {
+        label: "Recent",
+        icon: Eye,
+        href: "/recently-viewed",
     },
 ];
 
 export default function AnimeNavbar() {
     const pathname = usePathname();
+    const { user, loading: authLoading } = useAuthUser();
+
+    const [menuOpen, setMenuOpen] = useState(false);
+    const profileBtnRef = useRef<HTMLButtonElement>(null);
+
+    // Render-phase reset (the pattern AnimeSearch uses): close the account menu
+    // whenever the route changes or the user signs out — no effect needed.
+    const menuKey = `${pathname}|${user ? user.uid : "none"}`;
+    const [trackedMenuKey, setTrackedMenuKey] = useState(menuKey);
+    if (menuKey !== trackedMenuKey) {
+        setTrackedMenuKey(menuKey);
+        if (menuOpen) setMenuOpen(false);
+    }
 
     const goBack = () => window.history.back();
     const goForward = () => window.history.forward();
 
     return (
+        <>
         <nav
             className="anime-navbar"
             aria-label="AnimeVerse navigation"
@@ -62,7 +88,6 @@ export default function AnimeNavbar() {
                     aria-label="Go back"
                 >
                     <ArrowLeft size={17} />
-                    <span>Back</span>
                 </button>
 
                 <button
@@ -72,55 +97,100 @@ export default function AnimeNavbar() {
                     aria-label="Go forward"
                 >
                     <ArrowRight size={17} />
-                    <span>Next</span>
                 </button>
             </div>
 
             <span className="anime-navbar-divider" />
 
             <div className="anime-navbar-group">
-                {navItems.map((item) => {
+                {navItems.map((item, index) => {
                     const Icon = item.icon;
 
-                    if (item.disabled) {
+                    const groupDivider =
+                        index === 3 ? (
+                            <span
+                                className="anime-navbar-divider"
+                                aria-hidden="true"
+                            />
+                        ) : null;
+
+                    // Signed-in Profile item navigates to the account page.
+                    if ("auth" in item && !authLoading && user) {
                         return (
-                            <button
-                                key={item.label}
-                                type="button"
-                                className="anime-nav-item anime-nav-disabled"
-                                disabled
-                                aria-label={`${item.label} coming soon`}
-                            >
-                                <Icon size={17} />
-                                <span>{item.label}</span>
-                            </button>
+                            <Fragment key={item.label}>
+                                {groupDivider}
+                                <Link
+                                    href="/profile"
+                                    className={`anime-nav-item ${
+                                        pathname === "/profile"
+                                            ? "anime-nav-active"
+                                            : ""
+                                    }`}
+                                    aria-label={item.label}
+                                >
+                                    <Icon size={17} />
+                                </Link>
+                            </Fragment>
+                        );
+                    }
+
+                    // Signed-out "auth" item becomes a live link to /auth; while
+                    // auth state is still loading it keeps its neutral disabled
+                    // ("coming soon") state — no signed-in/out flash.
+                    const isAuthEntry =
+                        "auth" in item && !authLoading && !user;
+                    const href = isAuthEntry ? "/auth" : item.href;
+
+                    if (item.disabled && !isAuthEntry) {
+                        return (
+                            <Fragment key={item.label}>
+                                {groupDivider}
+                                <button
+                                    type="button"
+                                    className="anime-nav-item anime-nav-disabled"
+                                    disabled
+                                    aria-label={`${item.label} coming soon`}
+                                >
+                                    <Icon size={17} />
+                                </button>
+                            </Fragment>
                         );
                     }
 
                     const isActive =
-                        pathname === item.href ||
+                        pathname === href ||
                         (
-                            item.href === "/anime" &&
+                            href === "/anime" &&
                             pathname.startsWith("/anime/")
                         );
 
                     return (
-                        <Link
-                            key={item.label}
-                            href={item.href}
-                            className={`anime-nav-item ${
-                                isActive
-                                    ? "anime-nav-active"
-                                    : ""
-                            }`}
-                            aria-label={item.label}
-                        >
-                            <Icon size={17} />
-                            <span>{item.label}</span>
-                        </Link>
+                        <Fragment key={item.label}>
+                            {groupDivider}
+                            <Link
+                                href={href}
+                                className={`anime-nav-item ${
+                                    isActive
+                                        ? "anime-nav-active"
+                                        : ""
+                                }`}
+                                aria-label={item.label}
+                            >
+                                <Icon size={17} />
+                            </Link>
+                        </Fragment>
                     );
                 })}
             </div>
         </nav>
+
+        {menuOpen && user && (
+            <AccountMenu
+                user={user}
+                anchorRef={profileBtnRef}
+                onClose={() => setMenuOpen(false)}
+            />
+        )}
+        </>
     );
 }
